@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, LogOut, User, BookOpen } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PostRequirementModal from "./PostRequirementModal";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ParentDashboardProps {
   user: any;
@@ -15,15 +16,35 @@ interface ParentDashboardProps {
 const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
   const [showPostModal, setShowPostModal] = useState(false);
   const [parentRequests, setParentRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadParentRequests();
   }, [user.id]);
 
-  const loadParentRequests = () => {
-    const requests = JSON.parse(localStorage.getItem('parentRequests') || '[]');
-    const userRequests = requests.filter((req: any) => req.parentId === user.id);
-    setParentRequests(userRequests);
+  const loadParentRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('parent_requests')
+        .select('*')
+        .eq('parent_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading parent requests:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load your requests",
+          variant: "destructive"
+        });
+      } else {
+        setParentRequests(data || []);
+      }
+    } catch (error) {
+      console.error('Error loading parent requests:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePostSuccess = () => {
@@ -83,7 +104,9 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
         <div>
           <h2 className="text-2xl font-bold text-gray-800 mb-6">Your Posted Requirements</h2>
           
-          {parentRequests.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-8">Loading...</div>
+          ) : parentRequests.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center">
                 <User className="h-16 w-16 text-gray-400 mx-auto mb-4" />
@@ -103,7 +126,7 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
                 <Card key={request.id}>
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between">
-                      <span>{request.studentName ? `For ${request.studentName}` : 'Tutor Requirement'}</span>
+                      <span>{request.student_name ? `For ${request.student_name}` : 'Tutor Requirement'}</span>
                       <Badge variant="outline">{request.board}</Badge>
                     </CardTitle>
                   </CardHeader>
@@ -121,12 +144,12 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Location & Timing</p>
                         <p className="font-semibold">{request.locality}</p>
-                        <p className="text-sm text-gray-600 mt-1">{request.preferredTimings}</p>
+                        <p className="text-sm text-gray-600 mt-1">{request.preferred_timings}</p>
                       </div>
                     </div>
                     <div className="mt-4 pt-4 border-t">
                       <p className="text-sm text-gray-500">
-                        Posted on {new Date(request.createdAt).toLocaleDateString()}
+                        Posted on {new Date(request.created_at).toLocaleDateString()}
                       </p>
                     </div>
                   </CardContent>

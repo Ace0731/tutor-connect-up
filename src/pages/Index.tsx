@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -7,14 +7,73 @@ import { Users, BookOpen, MapPin, Star, Phone, Mail } from "lucide-react";
 import AuthModal from "@/components/AuthModal";
 import ParentDashboard from "@/components/ParentDashboard";
 import TutorDashboard from "@/components/TutorDashboard";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authRole, setAuthRole] = useState<'parent' | 'tutor'>('parent');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [selectedCity, setSelectedCity] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const cities = ['Kanpur', 'Lucknow', 'Unnao'];
+
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session);
+        
+        if (session?.user) {
+          // Get user profile
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          if (error) {
+            console.error('Error fetching profile:', error);
+            toast({
+              title: "Error",
+              description: "Failed to load user profile",
+              variant: "destructive"
+            });
+          } else {
+            setCurrentUser(profile);
+          }
+        } else {
+          setCurrentUser(null);
+        }
+        setLoading(false);
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        // Get user profile
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data: profile, error }) => {
+            if (error) {
+              console.error('Error fetching profile:', error);
+            } else {
+              setCurrentUser(profile);
+            }
+            setLoading(false);
+          });
+      } else {
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleRoleSelect = (role: 'parent' | 'tutor') => {
     setAuthRole(role);
@@ -26,9 +85,30 @@ const Index = () => {
     setShowAuthModal(false);
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to logout",
+        variant: "destructive"
+      });
+    } else {
+      setCurrentUser(null);
+      toast({
+        title: "Success",
+        description: "Logged out successfully",
+      });
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
 
   if (currentUser) {
     return currentUser.role === 'parent' ? 

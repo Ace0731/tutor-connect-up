@@ -9,7 +9,135 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      parent_requests: {
+        Row: {
+          board: string
+          class: string
+          created_at: string
+          id: string
+          locality: string
+          parent_id: string
+          preferred_timings: string
+          student_name: string | null
+          subjects: string[]
+          updated_at: string
+        }
+        Insert: {
+          board: string
+          class: string
+          created_at?: string
+          id?: string
+          locality: string
+          parent_id: string
+          preferred_timings: string
+          student_name?: string | null
+          subjects: string[]
+          updated_at?: string
+        }
+        Update: {
+          board?: string
+          class?: string
+          created_at?: string
+          id?: string
+          locality?: string
+          parent_id?: string
+          preferred_timings?: string
+          student_name?: string | null
+          subjects?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          city: string
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          city: string
+          created_at?: string
+          email: string
+          id: string
+          name: string
+          phone: string
+          role: string
+          updated_at?: string
+        }
+        Update: {
+          city?: string
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          phone?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tutor_profiles: {
+        Row: {
+          available_timings: string
+          class_range: string
+          created_at: string
+          fee_per_class: number
+          id: string
+          locality_preferences: string[]
+          subjects: string[]
+          tutor_id: string
+          updated_at: string
+        }
+        Insert: {
+          available_timings: string
+          class_range: string
+          created_at?: string
+          fee_per_class: number
+          id?: string
+          locality_preferences: string[]
+          subjects: string[]
+          tutor_id: string
+          updated_at?: string
+        }
+        Update: {
+          available_timings?: string
+          class_range?: string
+          created_at?: string
+          fee_per_class?: number
+          id?: string
+          locality_preferences?: string[]
+          subjects?: string[]
+          tutor_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      unlocked_contacts: {
+        Row: {
+          id: string
+          parent_id: string
+          tutor_id: string
+          unlocked_at: string
+        }
+        Insert: {
+          id?: string
+          parent_id: string
+          tutor_id: string
+          unlocked_at?: string
+        }
+        Update: {
+          id?: string
+          parent_id?: string
+          tutor_id?: string
+          unlocked_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

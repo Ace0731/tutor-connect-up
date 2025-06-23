@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AuthModalProps {
   role: 'parent' | 'tutor';
@@ -16,6 +17,7 @@ interface AuthModalProps {
 
 const AuthModal = ({ role, onClose, onSuccess }: AuthModalProps) => {
   const [isLogin, setIsLogin] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -33,8 +35,9 @@ const AuthModal = ({ role, onClose, onSuccess }: AuthModalProps) => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     
     if (!formData.email || !formData.password) {
       toast({
@@ -42,6 +45,7 @@ const AuthModal = ({ role, onClose, onSuccess }: AuthModalProps) => {
         description: "Please fill in all required fields",
         variant: "destructive"
       });
+      setIsLoading(false);
       return;
     }
 
@@ -51,52 +55,116 @@ const AuthModal = ({ role, onClose, onSuccess }: AuthModalProps) => {
         description: "Please fill in all required fields",
         variant: "destructive"
       });
+      setIsLoading(false);
       return;
     }
 
-    // Simulate authentication
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    
-    if (isLogin) {
-      const user = users.find((u: any) => u.email === formData.email && u.password === formData.password && u.role === role);
-      if (user) {
+    try {
+      if (isLogin) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (error) {
+          toast({
+            title: "Error",
+            description: error.message,
+            variant: "destructive"
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // Get user profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileError || !profile) {
+          toast({
+            title: "Error",
+            description: "Profile not found",
+            variant: "destructive"
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // Check if user role matches
+        if (profile.role !== role) {
+          toast({
+            title: "Error",
+            description: `This account is registered as a ${profile.role}, not a ${role}`,
+            variant: "destructive"
+          });
+          setIsLoading(false);
+          return;
+        }
+
         toast({
           title: "Success",
           description: "Login successful!",
         });
-        onSuccess(user);
+        onSuccess(profile);
       } else {
-        toast({
-          title: "Error",
-          description: "Invalid credentials",
-          variant: "destructive"
+        const redirectUrl = `${window.location.origin}/`;
+        
+        const { data, error } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            emailRedirectTo: redirectUrl,
+            data: {
+              name: formData.name,
+              phone: formData.phone,
+              city: formData.city,
+              role: role
+            }
+          }
         });
+
+        if (error) {
+          toast({
+            title: "Error",
+            description: error.message,
+            variant: "destructive"
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        if (data.user && !data.session) {
+          toast({
+            title: "Check your email",
+            description: "Please check your email for a confirmation link to complete your registration.",
+          });
+        } else if (data.user && data.session) {
+          // Get the created profile
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
+
+          toast({
+            title: "Success",
+            description: "Registration successful!",
+          });
+          onSuccess(profile);
+        }
       }
-    } else {
-      const existingUser = users.find((u: any) => u.email === formData.email);
-      if (existingUser) {
-        toast({
-          title: "Error", 
-          description: "User already exists",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      const newUser = {
-        id: Date.now(),
-        ...formData,
-        role
-      };
-      
-      users.push(newUser);
-      localStorage.setItem('users', JSON.stringify(users));
-      
+    } catch (error) {
+      console.error('Auth error:', error);
       toast({
-        title: "Success",
-        description: "Registration successful!",
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive"
       });
-      onSuccess(newUser);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -174,8 +242,8 @@ const AuthModal = ({ role, onClose, onSuccess }: AuthModalProps) => {
               />
             </div>
             
-            <Button type="submit" className="w-full">
-              {isLogin ? 'Login' : 'Register'}
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? 'Loading...' : (isLogin ? 'Login' : 'Register')}
             </Button>
             
             <Button
