@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, LogOut, User, BookOpen, Unlock, Lock, Phone, Mail } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PostTutorProfileModal from "./PostTutorProfileModal";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TutorDashboardProps {
   user: any;
@@ -17,6 +18,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
   const [tutorProfile, setTutorProfile] = useState<any>(null);
   const [matchedRequests, setMatchedRequests] = useState<any[]>([]);
   const [unlockedContacts, setUnlockedContacts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadTutorProfile();
@@ -29,47 +31,106 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
     }
   }, [tutorProfile]);
 
-  const loadTutorProfile = () => {
-    const profiles = JSON.parse(localStorage.getItem('tutorProfiles') || '[]');
-    const profile = profiles.find((p: any) => p.tutorId === user.id);
-    setTutorProfile(profile);
+  const loadTutorProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tutor_profiles')
+        .select('*')
+        .eq('tutor_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading tutor profile:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load tutor profile",
+          variant: "destructive"
+        });
+      } else {
+        setTutorProfile(data);
+      }
+    } catch (error) {
+      console.error('Error loading tutor profile:', error);
+    }
   };
 
-  const loadUnlockedContacts = () => {
-    const unlocked = JSON.parse(localStorage.getItem('unlockedContacts') || '[]');
-    const tutorUnlocked = unlocked.filter((u: any) => u.tutorId === user.id);
-    setUnlockedContacts(tutorUnlocked);
+  const loadUnlockedContacts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('unlocked_contacts')
+        .select('*')
+        .eq('tutor_id', user.id);
+
+      if (error) {
+        console.error('Error loading unlocked contacts:', error);
+      } else {
+        setUnlockedContacts(data || []);
+      }
+    } catch (error) {
+      console.error('Error loading unlocked contacts:', error);
+    }
   };
 
-  const loadMatchedRequests = () => {
-    const requests = JSON.parse(localStorage.getItem('parentRequests') || '[]');
-    
-    const matched = requests.filter((request: any) => {
-      // Match by city
-      if (request.city !== user.city) return false;
+  const loadMatchedRequests = async () => {
+    try {
+      // Get parent requests with parent profile information
+      const { data: requests, error } = await supabase
+        .from('parent_requests')
+        .select(`
+          *,
+          profiles:parent_id (
+            name,
+            email,
+            phone,
+            city
+          )
+        `);
+
+      if (error) {
+        console.error('Error loading parent requests:', error);
+        setLoading(false);
+        return;
+      }
+
+      if (!requests || !tutorProfile) {
+        setMatchedRequests([]);
+        setLoading(false);
+        return;
+      }
+
+      // Filter requests based on tutor profile criteria
+      const matched = requests.filter((request: any) => {
+        if (!request.profiles) return false;
+        
+        // Match by city
+        if (request.profiles.city !== user.city) return false;
+        
+        // Match by subjects (at least one common subject)
+        const hasCommonSubject = request.subjects.some((subject: string) => 
+          tutorProfile.subjects.includes(subject)
+        );
+        if (!hasCommonSubject) return false;
+        
+        // Match by class range
+        const requestClass = parseInt(request.class);
+        const [minClass, maxClass] = tutorProfile.class_range.split('-').map((c: string) => parseInt(c.trim()));
+        if (requestClass < minClass || requestClass > maxClass) return false;
+        
+        // Match by locality preferences
+        const hasMatchingLocality = tutorProfile.locality_preferences.some((locality: string) =>
+          locality.toLowerCase().includes(request.locality.toLowerCase()) ||
+          request.locality.toLowerCase().includes(locality.toLowerCase())
+        );
+        
+        return hasMatchingLocality;
+      });
       
-      // Match by subjects (at least one common subject)
-      const hasCommonSubject = request.subjects.some((subject: string) => 
-        tutorProfile.subjects.includes(subject)
-      );
-      if (!hasCommonSubject) return false;
-      
-      // Match by class range
-      const requestClass = parseInt(request.class);
-      const minClass = parseInt(tutorProfile.classRangeMin);
-      const maxClass = parseInt(tutorProfile.classRangeMax);
-      if (requestClass < minClass || requestClass > maxClass) return false;
-      
-      // Match by locality (simple contains check)
-      const hasMatchingLocality = tutorProfile.localityPreferences.some((locality: string) =>
-        locality.toLowerCase().includes(request.locality.toLowerCase()) ||
-        request.locality.toLowerCase().includes(locality.toLowerCase())
-      );
-      
-      return hasMatchingLocality;
-    });
-    
-    setMatchedRequests(matched);
+      setMatchedRequests(matched);
+    } catch (error) {
+      console.error('Error loading matched requests:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleProfileSuccess = () => {
@@ -81,29 +142,44 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
     });
   };
 
-  const handleUnlockContact = (parentId: number) => {
-    // Simulate payment success
-    const newUnlock = {
-      id: Date.now(),
-      tutorId: user.id,
-      parentId: parentId,
-      unlockedAt: new Date().toISOString()
-    };
-    
-    const unlocked = JSON.parse(localStorage.getItem('unlockedContacts') || '[]');
-    unlocked.push(newUnlock);
-    localStorage.setItem('unlockedContacts', JSON.stringify(unlocked));
-    
-    setUnlockedContacts(prev => [...prev, newUnlock]);
-    
-    toast({
-      title: "Contact Unlocked!",
-      description: "Payment successful. You can now see the parent's contact details.",
-    });
+  const handleUnlockContact = async (parentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('unlocked_contacts')
+        .insert({
+          tutor_id: user.id,
+          parent_id: parentId
+        });
+
+      if (error) {
+        console.error('Error unlocking contact:', error);
+        toast({
+          title: "Error",
+          description: "Failed to unlock contact",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Reload unlocked contacts
+      loadUnlockedContacts();
+      
+      toast({
+        title: "Contact Unlocked!",
+        description: "You can now see the parent's contact details.",
+      });
+    } catch (error) {
+      console.error('Error unlocking contact:', error);
+      toast({
+        title: "Error",
+        description: "Failed to unlock contact",
+        variant: "destructive"
+      });
+    }
   };
 
-  const isContactUnlocked = (parentId: number) => {
-    return unlockedContacts.some(u => u.parentId === parentId);
+  const isContactUnlocked = (parentId: string) => {
+    return unlockedContacts.some(u => u.parent_id === parentId);
   };
 
   return (
@@ -154,15 +230,23 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Class Range</p>
-                    <p className="font-semibold">Class {tutorProfile.classRangeMin} - {tutorProfile.classRangeMax}</p>
+                    <p className="font-semibold">{tutorProfile.class_range}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Fee Per Class</p>
-                    <p className="font-semibold">₹{tutorProfile.feePerClass}</p>
+                    <p className="font-semibold">₹{tutorProfile.fee_per_class}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Available Timings</p>
-                    <p className="text-sm">{tutorProfile.availableTimings}</p>
+                    <p className="text-sm">{tutorProfile.available_timings}</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <p className="text-sm text-gray-600 mb-1">Locality Preferences</p>
+                    <div className="flex flex-wrap gap-1">
+                      {tutorProfile.locality_preferences.map((locality: string) => (
+                        <Badge key={locality} variant="outline">{locality}</Badge>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -181,7 +265,9 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
             Matched Student Requests {matchedRequests.length > 0 && `(${matchedRequests.length})`}
           </h2>
           
-          {!tutorProfile ? (
+          {loading ? (
+            <div className="text-center py-8">Loading...</div>
+          ) : !tutorProfile ? (
             <Card>
               <CardContent className="py-8 text-center">
                 <User className="h-16 w-16 text-gray-400 mx-auto mb-4" />
@@ -209,12 +295,12 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
           ) : (
             <div className="grid gap-6">
               {matchedRequests.map((request) => {
-                const unlocked = isContactUnlocked(request.parentId);
+                const unlocked = isContactUnlocked(request.parent_id);
                 return (
                   <Card key={request.id}>
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between">
-                        <span>{request.studentName ? `${request.studentName}` : 'Student'} - Class {request.class}</span>
+                        <span>{request.student_name ? `${request.student_name}` : 'Student'} - Class {request.class}</span>
                         <Badge variant="outline">{request.board}</Badge>
                       </CardTitle>
                     </CardHeader>
@@ -234,11 +320,11 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
                         </div>
                         <div>
                           <p className="text-sm text-gray-600 mb-1">Preferred Timings</p>
-                          <p className="text-sm">{request.preferredTimings || 'Not specified'}</p>
+                          <p className="text-sm">{request.preferred_timings}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600 mb-1">Posted</p>
-                          <p className="text-sm">{new Date(request.createdAt).toLocaleDateString()}</p>
+                          <p className="text-sm">{new Date(request.created_at).toLocaleDateString()}</p>
                         </div>
                       </div>
                       
@@ -250,11 +336,11 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
                               <div className="space-y-1">
                                 <div className="flex items-center space-x-2">
                                   <Phone className="h-4 w-4 text-green-600" />
-                                  <span className="font-semibold">{request.parentPhone}</span>
+                                  <span className="font-semibold">{request.profiles.phone}</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                   <Mail className="h-4 w-4 text-green-600" />
-                                  <span className="font-semibold">{request.parentEmail}</span>
+                                  <span className="font-semibold">{request.profiles.email}</span>
                                 </div>
                               </div>
                             ) : (
@@ -267,7 +353,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
                           
                           {!unlocked && (
                             <Button 
-                              onClick={() => handleUnlockContact(request.parentId)}
+                              onClick={() => handleUnlockContact(request.parent_id)}
                               className="bg-yellow-600 hover:bg-yellow-700"
                             >
                               <Unlock className="h-4 w-4 mr-2" />
