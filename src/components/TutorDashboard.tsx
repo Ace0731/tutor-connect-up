@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,7 +56,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
   const loadUnlockedContacts = async () => {
     try {
       const { data, error } = await supabase
-        .from('unlocked_contacts')
+        .from('contact_unlocks')
         .select('*')
         .eq('tutor_id', user.id);
 
@@ -142,13 +141,14 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
     });
   };
 
-  const handleUnlockContact = async (parentId: string) => {
+  const handleUnlockContact = async (parentId: string, requestId: string) => {
     try {
       const { error } = await supabase
-        .from('unlocked_contacts')
+        .from('contact_unlocks')
         .insert({
           tutor_id: user.id,
-          parent_id: parentId
+          parent_id: parentId,
+          request_id: requestId
         });
 
       if (error) {
@@ -178,8 +178,8 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
     }
   };
 
-  const isContactUnlocked = (parentId: string) => {
-    return unlockedContacts.some(u => u.parent_id === parentId);
+  const isContactUnlocked = (parentId: string, requestId: string) => {
+    return unlockedContacts.some(u => u.parent_id === parentId && u.request_id === requestId);
   };
 
   return (
@@ -219,6 +219,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
             </CardHeader>
             <CardContent>
               {tutorProfile ? (
+                
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Subjects</p>
@@ -295,7 +296,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
           ) : (
             <div className="grid gap-6">
               {matchedRequests.map((request) => {
-                const unlocked = isContactUnlocked(request.parent_id);
+                const unlocked = isContactUnlocked(request.parent_id, request.id);
                 return (
                   <Card key={request.id}>
                     <CardHeader>
@@ -353,7 +354,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
                           
                           {!unlocked && (
                             <Button 
-                              onClick={() => handleUnlockContact(request.parent_id)}
+                              onClick={() => handleUnlockContact(request.parent_id, request.id)}
                               className="bg-yellow-600 hover:bg-yellow-700"
                             >
                               <Unlock className="h-4 w-4 mr-2" />

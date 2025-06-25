@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PostRequirementModalProps {
   user: any;
@@ -25,6 +26,7 @@ const PostRequirementModal = ({ user, onClose, onSuccess }: PostRequirementModal
     preferredTimings: '',
     locality: ''
   });
+  const [loading, setLoading] = useState(false);
 
   const boards = ['CBSE', 'ICSE', 'State'];
   const classes = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
@@ -50,7 +52,7 @@ const PostRequirementModal = ({ user, onClose, onSuccess }: PostRequirementModal
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.board || !formData.class || formData.subjects.length === 0 || !formData.locality) {
@@ -62,22 +64,42 @@ const PostRequirementModal = ({ user, onClose, onSuccess }: PostRequirementModal
       return;
     }
 
-    const newRequest = {
-      id: Date.now(),
-      parentId: user.id,
-      parentName: user.name,
-      parentEmail: user.email,
-      parentPhone: user.phone,
-      city: user.city,
-      ...formData,
-      createdAt: new Date().toISOString()
-    };
+    setLoading(true);
 
-    const requests = JSON.parse(localStorage.getItem('parentRequests') || '[]');
-    requests.push(newRequest);
-    localStorage.setItem('parentRequests', JSON.stringify(requests));
+    try {
+      const { error } = await supabase
+        .from('parent_requests')
+        .insert({
+          parent_id: user.id,
+          student_name: formData.studentName || null,
+          board: formData.board,
+          class: formData.class,
+          subjects: formData.subjects,
+          preferred_timings: formData.preferredTimings,
+          locality: formData.locality
+        });
 
-    onSuccess();
+      if (error) {
+        console.error('Error creating parent request:', error);
+        toast({
+          title: "Error",
+          description: "Failed to post requirement",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      onSuccess();
+    } catch (error) {
+      console.error('Error creating parent request:', error);
+      toast({
+        title: "Error",
+        description: "Failed to post requirement",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -170,8 +192,8 @@ const PostRequirementModal = ({ user, onClose, onSuccess }: PostRequirementModal
             </div>
 
             <div className="flex gap-4 pt-4">
-              <Button type="submit" className="flex-1">
-                Post Requirement
+              <Button type="submit" disabled={loading} className="flex-1">
+                {loading ? 'Posting...' : 'Post Requirement'}
               </Button>
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel

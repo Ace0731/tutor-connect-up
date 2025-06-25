@@ -9,6 +9,52 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      contact_unlocks: {
+        Row: {
+          id: string
+          parent_id: string
+          request_id: string
+          tutor_id: string
+          unlocked_at: string
+        }
+        Insert: {
+          id?: string
+          parent_id: string
+          request_id: string
+          tutor_id: string
+          unlocked_at?: string
+        }
+        Update: {
+          id?: string
+          parent_id?: string
+          request_id?: string
+          tutor_id?: string
+          unlocked_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_unlocks_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_unlocks_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "parent_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_unlocks_tutor_id_fkey"
+            columns: ["tutor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       parent_requests: {
         Row: {
           board: string
@@ -46,7 +92,15 @@ export type Database = {
           subjects?: string[]
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "parent_requests_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -115,28 +169,15 @@ export type Database = {
           tutor_id?: string
           updated_at?: string
         }
-        Relationships: []
-      }
-      unlocked_contacts: {
-        Row: {
-          id: string
-          parent_id: string
-          tutor_id: string
-          unlocked_at: string
-        }
-        Insert: {
-          id?: string
-          parent_id: string
-          tutor_id: string
-          unlocked_at?: string
-        }
-        Update: {
-          id?: string
-          parent_id?: string
-          tutor_id?: string
-          unlocked_at?: string
-        }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tutor_profiles_tutor_id_fkey"
+            columns: ["tutor_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
