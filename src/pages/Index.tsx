@@ -4,32 +4,36 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, BookOpen, MapPin, Star, Phone, Mail } from "lucide-react";
+
 import AuthModal from "@/components/AuthModal";
+
 import ParentDashboard from "@/components/ParentDashboard";
 import TutorDashboard from "@/components/TutorDashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
+type UserProfile = {
+  id: string;
+  role: 'parent' | 'tutor';
+  [key: string]: any;
+};
+
 const Index = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authRole, setAuthRole] = useState<'parent' | 'tutor'>('parent');
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [selectedCity, setSelectedCity] = useState('');
   const [loading, setLoading] = useState(true);
 
   const cities = ['Kanpur', 'Lucknow', 'Unnao'];
 
   useEffect(() => {
-    console.log('Index component mounted, setting up auth listener');
-    
+    let subscription: { unsubscribe: () => void } | null = null;
+
     // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.id);
-        
+    const { data } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
         if (session?.user) {
-          console.log('User authenticated, fetching profile');
-          // Get user profile
           const { data: profile, error } = await supabase
             .from('profiles')
             .select('*')
@@ -37,37 +41,33 @@ const Index = () => {
             .maybeSingle();
 
           if (error) {
-            console.error('Error fetching profile:', error);
             toast({
               title: "Error",
               description: "Failed to load user profile. Please try logging in again.",
               variant: "destructive"
             });
+            setCurrentUser(null);
           } else if (profile) {
-            console.log('Profile loaded:', profile);
-            setCurrentUser(profile);
+            setCurrentUser(profile as UserProfile);
           } else {
-            console.log('No profile found for user, they may need to complete registration');
+            setCurrentUser(null);
           }
         } else {
-          console.log('User not authenticated');
           setCurrentUser(null);
         }
         setLoading(false);
       }
     );
+    subscription = data.subscription;
 
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
+    supabase.auth.getSession().then(({ data, error }) => {
       if (error) {
-        console.error('Error getting session:', error);
         setLoading(false);
         return;
       }
-
+      const session = data?.session;
       if (session?.user) {
-        console.log('Existing session found, fetching profile');
-        // Get user profile
         supabase
           .from('profiles')
           .select('*')
@@ -75,42 +75,40 @@ const Index = () => {
           .maybeSingle()
           .then(({ data: profile, error }) => {
             if (error) {
-              console.error('Error fetching profile:', error);
+              setCurrentUser(null);
             } else if (profile) {
-              console.log('Profile loaded from existing session:', profile);
-              setCurrentUser(profile);
+              setCurrentUser(profile as UserProfile);
+            } else {
+              setCurrentUser(null);
             }
             setLoading(false);
           });
       } else {
-        console.log('No existing session');
+        setCurrentUser(null);
         setLoading(false);
       }
     });
 
     return () => {
-      console.log('Cleaning up auth subscription');
-      subscription.unsubscribe();
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
   }, []);
 
   const handleRoleSelect = (role: 'parent' | 'tutor') => {
-    console.log('Role selected:', role);
     setAuthRole(role);
     setShowAuthModal(true);
   };
 
-  const handleAuthSuccess = (user: any) => {
-    console.log('Auth success, user:', user);
+  const handleAuthSuccess = (user: UserProfile) => {
     setCurrentUser(user);
     setShowAuthModal(false);
   };
 
   const handleLogout = async () => {
-    console.log('Logging out user');
     const { error } = await supabase.auth.signOut();
     if (error) {
-      console.error('Logout error:', error);
       toast({
         title: "Error",
         description: "Failed to logout",
@@ -134,10 +132,21 @@ const Index = () => {
   }
 
   if (currentUser) {
-    console.log('Rendering dashboard for user role:', currentUser.role);
-    return currentUser.role === 'parent' ? 
-      <ParentDashboard user={currentUser} onLogout={handleLogout} /> : 
-      <TutorDashboard user={currentUser} onLogout={handleLogout} />;
+    if (currentUser.role === 'parent') {
+      return <ParentDashboard user={currentUser} onLogout={handleLogout} />;
+    } else if (currentUser.role === 'tutor') {
+      return <TutorDashboard user={currentUser} onLogout={handleLogout} />;
+    } else {
+      // fallback for unknown role
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div>
+            <div className="text-2xl mb-4">Unknown user role.</div>
+            <Button onClick={handleLogout}>Logout</Button>
+          </div>
+        </div>
+      );
+    }
   }
 
   return (
@@ -171,10 +180,10 @@ const Index = () => {
             Find the Perfect Tutor Near You
           </h2>
           <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto">
-            Connect with qualified tutors in Kanpur, Lucknow, and Unnao. 
+            Connect with qualified tutors in Kanpur, Lucknow, and Unnao.
             Quality education made accessible for every student.
           </p>
-          
+
           <div className="flex flex-col md:flex-row gap-6 justify-center items-center">
             <Card className="w-full md:w-80 cursor-pointer hover:shadow-lg transition-shadow">
               <CardHeader className="text-center">
@@ -185,7 +194,7 @@ const Index = () => {
                 <p className="text-gray-600 mb-6">
                   Looking for the right tutor for your child? Post your requirements and connect with qualified educators.
                 </p>
-                <Button 
+                <Button
                   onClick={() => handleRoleSelect('parent')}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg"
                 >
@@ -203,7 +212,7 @@ const Index = () => {
                 <p className="text-gray-600 mb-6">
                   Share your expertise and connect with students who need your help. Start earning today.
                 </p>
-                <Button 
+                <Button
                   onClick={() => handleRoleSelect('tutor')}
                   className="w-full bg-green-600 hover:bg-green-700 text-white py-3 text-lg"
                 >
@@ -221,7 +230,7 @@ const Index = () => {
           <h3 className="text-3xl font-bold text-center text-gray-800 mb-12">
             How It Works
           </h3>
-          
+
           <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             <div className="text-center">
               <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
@@ -230,7 +239,7 @@ const Index = () => {
               <h4 className="text-xl font-semibold mb-2">Register</h4>
               <p className="text-gray-600">Create your account as a parent or tutor with basic details</p>
             </div>
-            
+
             <div className="text-center">
               <div className="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl font-bold text-green-600">2</span>
@@ -238,7 +247,7 @@ const Index = () => {
               <h4 className="text-xl font-semibold mb-2">Post Requirements</h4>
               <p className="text-gray-600">Parents post needs, tutors create profiles with their expertise</p>
             </div>
-            
+
             <div className="text-center">
               <div className="bg-purple-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl font-bold text-purple-600">3</span>
