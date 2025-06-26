@@ -19,10 +19,12 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('ParentDashboard mounted, user:', user);
     loadParentRequests();
   }, [user.id]);
 
   const loadParentRequests = async () => {
+    console.log('Loading parent requests for user:', user.id);
     try {
       const { data, error } = await supabase
         .from('parent_requests')
@@ -38,6 +40,7 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
           variant: "destructive"
         });
       } else {
+        console.log('Parent requests loaded:', data);
         setParentRequests(data || []);
       }
     } catch (error) {
@@ -105,7 +108,7 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
           <h2 className="text-2xl font-bold text-gray-800 mb-6">Your Posted Requirements</h2>
           
           {loading ? (
-            <div className="text-center py-8">Loading...</div>
+            <div className="text-center py-8">Loading your requirements...</div>
           ) : parentRequests.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center">
@@ -144,7 +147,7 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Location & Timing</p>
                         <p className="font-semibold">{request.locality}</p>
-                        <p className="text-sm text-gray-600 mt-1">{request.preferred_timings}</p>
+                        <p className="text-sm text-gray-600 mt-1">{request.preferred_timings || 'Not specified'}</p>
                       </div>
                     </div>
                     <div className="mt-4 pt-4 border-t">

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,25 +21,28 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('TutorDashboard mounted, user:', user);
     loadTutorProfile();
     loadUnlockedContacts();
   }, [user.id]);
 
   useEffect(() => {
     if (tutorProfile) {
+      console.log('Tutor profile loaded, loading matched requests');
       loadMatchedRequests();
     }
   }, [tutorProfile]);
 
   const loadTutorProfile = async () => {
+    console.log('Loading tutor profile for user:', user.id);
     try {
       const { data, error } = await supabase
         .from('tutor_profiles')
         .select('*')
         .eq('tutor_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error loading tutor profile:', error);
         toast({
           title: "Error",
@@ -46,6 +50,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
           variant: "destructive"
         });
       } else {
+        console.log('Tutor profile data:', data);
         setTutorProfile(data);
       }
     } catch (error) {
@@ -54,6 +59,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
   };
 
   const loadUnlockedContacts = async () => {
+    console.log('Loading unlocked contacts for tutor:', user.id);
     try {
       const { data, error } = await supabase
         .from('contact_unlocks')
@@ -63,6 +69,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
       if (error) {
         console.error('Error loading unlocked contacts:', error);
       } else {
+        console.log('Unlocked contacts:', data);
         setUnlockedContacts(data || []);
       }
     } catch (error) {
@@ -71,6 +78,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
   };
 
   const loadMatchedRequests = async () => {
+    console.log('Loading matched requests for tutor in city:', user.city);
     try {
       // Get parent requests with parent profile information
       const { data: requests, error } = await supabase
@@ -87,11 +95,19 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
 
       if (error) {
         console.error('Error loading parent requests:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load student requests",
+          variant: "destructive"
+        });
         setLoading(false);
         return;
       }
 
+      console.log('All parent requests:', requests);
+
       if (!requests || !tutorProfile) {
+        console.log('No requests or tutor profile not available');
         setMatchedRequests([]);
         setLoading(false);
         return;
@@ -99,31 +115,47 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
 
       // Filter requests based on tutor profile criteria
       const matched = requests.filter((request: any) => {
-        if (!request.profiles) return false;
+        console.log('Checking request:', request.id, 'for matching');
+        
+        if (!request.profiles) {
+          console.log('Request has no profile data');
+          return false;
+        }
         
         // Match by city
-        if (request.profiles.city !== user.city) return false;
+        if (request.profiles.city !== user.city) {
+          console.log('City mismatch:', request.profiles.city, 'vs', user.city);
+          return false;
+        }
         
         // Match by subjects (at least one common subject)
         const hasCommonSubject = request.subjects.some((subject: string) => 
           tutorProfile.subjects.includes(subject)
         );
-        if (!hasCommonSubject) return false;
+        if (!hasCommonSubject) {
+          console.log('No common subjects');
+          return false;
+        }
         
         // Match by class range
         const requestClass = parseInt(request.class);
         const [minClass, maxClass] = tutorProfile.class_range.split('-').map((c: string) => parseInt(c.trim()));
-        if (requestClass < minClass || requestClass > maxClass) return false;
+        if (requestClass < minClass || requestClass > maxClass) {
+          console.log('Class out of range:', requestClass, 'not in', minClass, '-', maxClass);
+          return false;
+        }
         
-        // Match by locality preferences
+        // Match by locality preferences (more flexible matching)
         const hasMatchingLocality = tutorProfile.locality_preferences.some((locality: string) =>
           locality.toLowerCase().includes(request.locality.toLowerCase()) ||
           request.locality.toLowerCase().includes(locality.toLowerCase())
         );
         
+        console.log('Request matches criteria:', hasMatchingLocality);
         return hasMatchingLocality;
       });
       
+      console.log('Matched requests:', matched.length);
       setMatchedRequests(matched);
     } catch (error) {
       console.error('Error loading matched requests:', error);
@@ -142,6 +174,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
   };
 
   const handleUnlockContact = async (parentId: string, requestId: string) => {
+    console.log('Unlocking contact for parent:', parentId, 'request:', requestId);
     try {
       const { error } = await supabase
         .from('contact_unlocks')
@@ -219,7 +252,6 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
             </CardHeader>
             <CardContent>
               {tutorProfile ? (
-                
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Subjects</p>
@@ -267,7 +299,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
           </h2>
           
           {loading ? (
-            <div className="text-center py-8">Loading...</div>
+            <div className="text-center py-8">Loading matched requests...</div>
           ) : !tutorProfile ? (
             <Card>
               <CardContent className="py-8 text-center">
@@ -321,7 +353,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
                         </div>
                         <div>
                           <p className="text-sm text-gray-600 mb-1">Preferred Timings</p>
-                          <p className="text-sm">{request.preferred_timings}</p>
+                          <p className="text-sm">{request.preferred_timings || 'Not specified'}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600 mb-1">Posted</p>

@@ -20,30 +20,37 @@ const Index = () => {
   const cities = ['Kanpur', 'Lucknow', 'Unnao'];
 
   useEffect(() => {
+    console.log('Index component mounted, setting up auth listener');
+    
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session);
+        console.log('Auth state changed:', event, session?.user?.id);
         
         if (session?.user) {
+          console.log('User authenticated, fetching profile');
           // Get user profile
           const { data: profile, error } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
-            .single();
+            .maybeSingle();
 
           if (error) {
             console.error('Error fetching profile:', error);
             toast({
               title: "Error",
-              description: "Failed to load user profile",
+              description: "Failed to load user profile. Please try logging in again.",
               variant: "destructive"
             });
-          } else {
+          } else if (profile) {
+            console.log('Profile loaded:', profile);
             setCurrentUser(profile);
+          } else {
+            console.log('No profile found for user, they may need to complete registration');
           }
         } else {
+          console.log('User not authenticated');
           setCurrentUser(null);
         }
         setLoading(false);
@@ -51,43 +58,59 @@ const Index = () => {
     );
 
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Error getting session:', error);
+        setLoading(false);
+        return;
+      }
+
       if (session?.user) {
+        console.log('Existing session found, fetching profile');
         // Get user profile
         supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single()
+          .maybeSingle()
           .then(({ data: profile, error }) => {
             if (error) {
               console.error('Error fetching profile:', error);
-            } else {
+            } else if (profile) {
+              console.log('Profile loaded from existing session:', profile);
               setCurrentUser(profile);
             }
             setLoading(false);
           });
       } else {
+        console.log('No existing session');
         setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log('Cleaning up auth subscription');
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleRoleSelect = (role: 'parent' | 'tutor') => {
+    console.log('Role selected:', role);
     setAuthRole(role);
     setShowAuthModal(true);
   };
 
   const handleAuthSuccess = (user: any) => {
+    console.log('Auth success, user:', user);
     setCurrentUser(user);
     setShowAuthModal(false);
   };
 
   const handleLogout = async () => {
+    console.log('Logging out user');
     const { error } = await supabase.auth.signOut();
     if (error) {
+      console.error('Logout error:', error);
       toast({
         title: "Error",
         description: "Failed to logout",
@@ -111,6 +134,7 @@ const Index = () => {
   }
 
   if (currentUser) {
+    console.log('Rendering dashboard for user role:', currentUser.role);
     return currentUser.role === 'parent' ? 
       <ParentDashboard user={currentUser} onLogout={handleLogout} /> : 
       <TutorDashboard user={currentUser} onLogout={handleLogout} />;
