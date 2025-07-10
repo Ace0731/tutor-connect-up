@@ -116,27 +116,27 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
       // Filter requests based on tutor profile criteria
       const matched = requests.filter((request: any) => {
         console.log('Checking request:', request.id, 'for matching');
-        
+
         if (!request.profiles) {
           console.log('Request has no profile data');
           return false;
         }
-        
+
         // Match by city
         if (request.profiles.city !== user.city) {
           console.log('City mismatch:', request.profiles.city, 'vs', user.city);
           return false;
         }
-        
+
         // Match by subjects (at least one common subject)
-        const hasCommonSubject = request.subjects.some((subject: string) => 
+        const hasCommonSubject = request.subjects.some((subject: string) =>
           tutorProfile.subjects.includes(subject)
         );
         if (!hasCommonSubject) {
           console.log('No common subjects');
           return false;
         }
-        
+
         // Match by class range
         const requestClass = parseInt(request.class);
         const [minClass, maxClass] = tutorProfile.class_range.split('-').map((c: string) => parseInt(c.trim()));
@@ -144,17 +144,17 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
           console.log('Class out of range:', requestClass, 'not in', minClass, '-', maxClass);
           return false;
         }
-        
+
         // Match by locality preferences (more flexible matching)
         const hasMatchingLocality = tutorProfile.locality_preferences.some((locality: string) =>
           locality.toLowerCase().includes(request.locality.toLowerCase()) ||
           request.locality.toLowerCase().includes(locality.toLowerCase())
         );
-        
+
         console.log('Request matches criteria:', hasMatchingLocality);
         return hasMatchingLocality;
       });
-      
+
       console.log('Matched requests:', matched.length);
       setMatchedRequests(matched);
     } catch (error) {
@@ -196,7 +196,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
 
       // Reload unlocked contacts
       loadUnlockedContacts();
-      
+
       toast({
         title: "Contact Unlocked!",
         description: "You can now see the parent's contact details.",
@@ -284,7 +284,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
                 </div>
               ) : (
                 <p className="text-gray-600">
-                  Create your tutor profile to start receiving student requests. 
+                  Create your tutor profile to start receiving student requests.
                   Include your subjects, fee, and availability.
                 </p>
               )}
@@ -297,7 +297,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
           <h2 className="text-2xl font-bold text-gray-800 mb-6">
             Matched Student Requests {matchedRequests.length > 0 && `(${matchedRequests.length})`}
           </h2>
-          
+
           {loading ? (
             <div className="text-center py-8">Loading matched requests...</div>
           ) : !tutorProfile ? (
@@ -320,7 +320,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
                 <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-600 mb-2">No Matches Yet</h3>
                 <p className="text-gray-500">
-                  No student requests match your profile criteria yet. 
+                  No student requests match your profile criteria yet.
                   Check back later or update your profile to match more requests.
                 </p>
               </CardContent>
@@ -360,39 +360,37 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
                           <p className="text-sm">{new Date(request.created_at).toLocaleDateString()}</p>
                         </div>
                       </div>
-                      
+
                       <div className="border-t pt-4">
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm text-gray-600 mb-1">Parent Contact</p>
-                            {unlocked ? (
-                              <div className="space-y-1">
-                                <div className="flex items-center space-x-2">
-                                  <Phone className="h-4 w-4 text-green-600" />
-                                  <span className="font-semibold">{request.profiles.phone}</span>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <Mail className="h-4 w-4 text-green-600" />
-                                  <span className="font-semibold">{request.profiles.email}</span>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center space-x-2 text-gray-500">
-                                <Lock className="h-4 w-4" />
-                                <span>Contact details locked</span>
-                              </div>
-                            )}
+                            <div className="flex items-center space-x-2 text-gray-500">
+                              <Lock className="h-4 w-4" />
+                              <span>Contact details locked</span>
+                            </div>
                           </div>
-                          
-                          {!unlocked && (
-                            <Button 
-                              onClick={() => handleUnlockContact(request.parent_id, request.id)}
-                              className="bg-yellow-600 hover:bg-yellow-700"
-                            >
-                              <Unlock className="h-4 w-4 mr-2" />
-                              Unlock Contact for ₹49
-                            </Button>
-                          )}
+                          <Button
+                            onClick={() => {
+                              // Compose WhatsApp message
+                              const tutorDetails = `Tutor Name: ${user.name}\nEmail: ${user.email}\nPhone: ${user.phone}\nCity: ${user.city}`;
+                              const profile = tutorProfile || {};
+                              const subjects = profile.subjects ? profile.subjects.join(', ') : '';
+                              const classRange = profile.class_range || '';
+                              const fee = profile.fee_per_class ? `₹${profile.fee_per_class}` : '';
+                              const timings = profile.available_timings || '';
+                              const localities = profile.locality_preferences ? profile.locality_preferences.join(', ') : '';
+                              const tutorProfileDetails = `Subjects: ${subjects}\nClass Range: ${classRange}\nFee Per Class: ${fee}\nAvailable Timings: ${timings}\nLocality Preferences: ${localities}`;
+                              const parentRequestDetails = `Student Name: ${request.student_name || ''}\nClass: ${request.class}\nBoard: ${request.board}\nSubjects: ${request.subjects.join(', ')}\nLocation: ${request.locality}\nPreferred Timings: ${request.preferred_timings || 'Not specified'}`;
+                              const message = `Unlock Request from Tutor\n\n${tutorDetails}\n${tutorProfileDetails}\n\nMatched Parent Request:\n${parentRequestDetails}`;
+                              const whatsappUrl = `https://wa.me/918181066459?text=${encodeURIComponent(message)}`;
+                              window.open(whatsappUrl, '_blank');
+                            }}
+                            className="bg-yellow-600 hover:bg-yellow-700"
+                          >
+                            <Unlock className="h-4 w-4 mr-2" />
+                            Connect
+                          </Button>
                         </div>
                       </div>
                     </CardContent>
