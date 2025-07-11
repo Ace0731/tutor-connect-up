@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { X, Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { collection, addDoc, updateDoc, doc } from "firebase/firestore";
 import { z } from "zod";
 
 interface PostTutorProfileModalProps {
@@ -29,12 +30,15 @@ const PostTutorProfileModal = ({ user, existingProfile, onClose, onSuccess }: Po
   const [currentSubject, setCurrentSubject] = useState('');
   const [currentLocality, setCurrentLocality] = useState('');
   const [loading, setLoading] = useState(false);
+  const [city, setCity] = useState(existingProfile?.city || '');
 
   const availableSubjects = [
     'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Hindi',
     'History', 'Geography', 'Political Science', 'Economics', 'Computer Science',
     'Accountancy', 'Business Studies', 'Psychology', 'Sociology'
   ];
+
+  const cities = ['Kanpur', 'Lucknow', 'Unnao'];
 
   const addSubject = () => {
     if (currentSubject && !subjects.includes(currentSubject)) {
@@ -102,22 +106,27 @@ const PostTutorProfileModal = ({ user, existingProfile, onClose, onSuccess }: Po
         class_range: `${validation.data.classRangeMin}-${validation.data.classRangeMax}`,
         locality_preferences: validation.data.localityPreferences,
         fee_per_class: validation.data.feePerClass,
-        available_timings: validation.data.availableTimings
+        available_timings: validation.data.availableTimings,
+        city: city
       };
 
       let error;
 
       if (existingProfile) {
-        const { error: updateError } = await supabase
-          .from('tutor_profiles')
-          .update(profileData)
-          .eq('tutor_id', user.id);
-        error = updateError;
+        try {
+          const docRef = doc(db, 'tutor_profiles', existingProfile.id);
+          await updateDoc(docRef, profileData);
+          error = null;
+        } catch (updateError: any) {
+          error = updateError;
+        }
       } else {
-        const { error: insertError } = await supabase
-          .from('tutor_profiles')
-          .insert(profileData);
-        error = insertError;
+        try {
+          await addDoc(collection(db, 'tutor_profiles'), profileData);
+          error = null;
+        } catch (insertError: any) {
+          error = insertError;
+        }
       }
 
       if (error) {
@@ -156,6 +165,19 @@ const PostTutorProfileModal = ({ user, existingProfile, onClose, onSuccess }: Po
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <Label htmlFor="city">City *</Label>
+              <Select value={city} onValueChange={setCity}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select city" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cities.map(cityOption => (
+                    <SelectItem key={cityOption} value={cityOption}>{cityOption}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             {/* Subjects */}
             <div>
               <Label htmlFor="subjects">Subjects You Teach *</Label>

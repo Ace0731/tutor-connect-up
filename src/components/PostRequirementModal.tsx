@@ -9,7 +9,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { collection, addDoc, updateDoc, doc } from "firebase/firestore";
 
 interface PostRequirementModalProps {
   user: any;
@@ -25,7 +26,8 @@ const PostRequirementModal = ({ user, existingRequest, onClose, onSuccess }: Pos
     class: '',
     subjects: [] as string[],
     preferredTimings: '',
-    locality: ''
+    locality: '',
+    city: ''
   });
   const [loading, setLoading] = useState(false);
 
@@ -37,7 +39,8 @@ const PostRequirementModal = ({ user, existingRequest, onClose, onSuccess }: Pos
         class: existingRequest.class || '',
         subjects: existingRequest.subjects || [],
         preferredTimings: existingRequest.preferred_timings || '',
-        locality: existingRequest.locality || ''
+        locality: existingRequest.locality || '',
+        city: existingRequest.city || ''
       });
     }
   }, [existingRequest]);
@@ -49,6 +52,7 @@ const PostRequirementModal = ({ user, existingRequest, onClose, onSuccess }: Pos
     'Hindi', 'Social Science', 'Computer Science', 'Economics',
     'Accountancy', 'Business Studies'
   ];
+  const cities = ['Kanpur', 'Lucknow', 'Unnao'];
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -69,7 +73,7 @@ const PostRequirementModal = ({ user, existingRequest, onClose, onSuccess }: Pos
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.board || !formData.class || formData.subjects.length === 0 || !formData.locality) {
+    if (!formData.board || !formData.class || formData.subjects.length === 0 || !formData.locality || !formData.city) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
@@ -82,51 +86,48 @@ const PostRequirementModal = ({ user, existingRequest, onClose, onSuccess }: Pos
 
     try {
       if (existingRequest) {
-        // Update existing request
-        const { error } = await supabase
-          .from('parent_requests')
-          .update({
+        // Update existing request in Firestore
+        try {
+          const docRef = doc(db, 'parent_requests', existingRequest.id);
+          await updateDoc(docRef, {
             student_name: formData.studentName || null,
             board: formData.board,
             class: formData.class,
             subjects: formData.subjects,
             preferred_timings: formData.preferredTimings,
             locality: formData.locality,
+            city: formData.city,
             updated_at: new Date().toISOString()
-          })
-          .eq('id', existingRequest.id);
-
-        if (error) {
-          console.error('Error updating parent request:', error);
+          });
+        } catch (error: any) {
           toast({
             title: "Error",
-            description: error.message || "Failed to update requirement",
+            description: error?.message || "Failed to update requirement",
             variant: "destructive"
           });
           setLoading(false);
           return;
         }
       } else {
-        // Insert new request
-        const insertData = {
-          parent_id: user.id,
-          student_name: formData.studentName || null,
-          board: formData.board,
-          class: formData.class,
-          subjects: formData.subjects,
-          preferred_timings: formData.preferredTimings,
-          locality: formData.locality
-        };
-        const { error } = await supabase
-          .from('parent_requests')
-          .insert(insertData);
-
-        if (error) {
+        // Insert new request in Firestore
+        try {
+          await addDoc(collection(db, 'parent_requests'), {
+            parent_id: user.id,
+            student_name: formData.studentName || null,
+            board: formData.board,
+            class: formData.class,
+            subjects: formData.subjects,
+            preferred_timings: formData.preferredTimings,
+            locality: formData.locality,
+            city: formData.city,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        } catch (error: any) {
           console.error('Error creating parent request:', error);
-          console.log('Insert data:', insertData);
           toast({
             title: "Error",
-            description: error.message || "Failed to post requirement",
+            description: error?.message || "Failed to post requirement",
             variant: "destructive"
           });
           setLoading(false);
@@ -223,6 +224,20 @@ const PostRequirementModal = ({ user, existingRequest, onClose, onSuccess }: Pos
                 placeholder="Enter your locality/area"
                 required
               />
+            </div>
+
+            <div>
+              <Label htmlFor="city">City *</Label>
+              <Select value={formData.city} onValueChange={value => handleInputChange('city', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select city" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cities.map(city => (
+                    <SelectItem key={city} value={city}>{city}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>

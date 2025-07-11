@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, LogOut, User, BookOpen, Edit, Trash } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PostRequirementModal from "./PostRequirementModal";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc } from "firebase/firestore";
 
 interface ParentDashboardProps {
   user: any;
@@ -26,23 +27,20 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
 
   const loadParentRequests = async () => {
     try {
-      const { data, error } = await supabase
-        .from('parent_requests')
-        .select('*')
-        .eq('parent_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to load your requests",
-          variant: "destructive"
-        });
-      } else {
-        setParentRequests(data || []);
-      }
+      // Query Firestore for parent_requests where parent_id == user.id
+      const q = query(collection(db, 'parent_requests'), where('parent_id', '==', user.id));
+      const querySnapshot = await getDocs(q);
+      const requests = querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as any));
+      // Optionally sort by created_at descending
+      requests.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+      setParentRequests(requests);
     } catch (error) {
       console.error('Error loading parent requests:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load your requests",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -66,26 +64,20 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
   const handleDelete = async (requestId: string) => {
     setActionLoading(requestId);
     try {
-      const { error } = await supabase
-        .from('parent_requests')
-        .delete()
-        .eq('id', requestId);
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to delete request",
-          variant: "destructive"
-        });
-      } else {
-        loadParentRequests();
-        toast({
-          title: "Success",
-          description: "Request deleted successfully",
-        });
-      }
+      const docRef = doc(db, 'parent_requests', requestId);
+      await deleteDoc(docRef);
+      loadParentRequests();
+      toast({
+        title: "Success",
+        description: "Request deleted successfully",
+      });
     } catch (error) {
       console.error('Error deleting request:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete request",
+        variant: "destructive"
+      });
     } finally {
       setActionLoading(null);
     }
@@ -131,7 +123,7 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
             </CardHeader>
             <CardContent>
               <p className="text-gray-600">
-                Create a detailed requirement to find the perfect tutor for your child. 
+                Create a detailed requirement to find the perfect tutor for your child.
                 Include subject preferences, timings, and locality details.
               </p>
             </CardContent>
@@ -141,7 +133,7 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
         {/* Posted Requests */}
         <div>
           <h2 className="text-2xl font-bold text-gray-800 mb-6">Your Posted Requirements</h2>
-          
+
           {loading ? (
             <div className="text-center py-8">Loading your requirements...</div>
           ) : parentRequests.length === 0 ? (

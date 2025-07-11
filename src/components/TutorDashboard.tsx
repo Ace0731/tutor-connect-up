@@ -1,12 +1,13 @@
-
+// 📦 Imports remain the same
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, LogOut, User, BookOpen, Unlock, Lock, Phone, Mail } from "lucide-react";
+import { Plus, LogOut, BookOpen, Unlock, Lock } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PostTutorProfileModal from "./PostTutorProfileModal";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { collection, query, where, getDocs, doc, addDoc } from "firebase/firestore";
 
 interface TutorDashboardProps {
   user: any;
@@ -29,45 +30,34 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
     if (tutorProfile) {
       loadMatchedRequests();
     }
-  }, [tutorProfile]);
+  }, [tutorProfile, unlockedContacts]); // add unlockedContacts to refresh UI
 
   const loadTutorProfile = async () => {
     try {
-      const { data, error } = await supabase
-        .from('tutor_profiles')
-        .select('*')
-        .eq('tutor_id', user.id)
-        .maybeSingle();
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to load tutor profile",
-          variant: "destructive"
-        });
-      } else {
-        setTutorProfile(data);
-      }
+      const q = query(collection(db, 'tutor_profiles'), where('tutor_id', '==', user.id));
+      const querySnapshot = await getDocs(q);
+      const profile = querySnapshot.docs.length > 0 ? { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() } : null;
+      setTutorProfile(profile);
     } catch (error) {
       console.error('Error loading tutor profile:', error);
+      toast({ title: "Error", description: "Failed to load tutor profile", variant: "destructive" });
     }
   };
 
   const loadUnlockedContacts = async () => {
     try {
-      const { data, error } = await supabase
-        .from('contact_unlocks')
-        .select('*')
-        .eq('tutor_id', user.id);
-
-      if (error) {
-        console.error('Error loading unlocked contacts:', error);
-      } else {
-        setUnlockedContacts(data || []);
-      }
+      const q = query(collection(db, 'contact_unlocks'), where('tutor_id', '==', user.id));
+      const querySnapshot = await getDocs(q);
+      const contacts = querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+      setUnlockedContacts(contacts);
     } catch (error) {
       console.error('Error loading unlocked contacts:', error);
     }
+  };
+
+  const getUnlockStatus = (parentId: string, requestId: string) => {
+    const unlock = unlockedContacts.find(u => u.parent_id === parentId && u.request_id === requestId);
+    return unlock ? unlock.status : null;
   };
 
   const loadMatchedRequests = async () => {
@@ -78,35 +68,39 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
         return;
       }
 
-      // Fetch parent requests that match tutor's city, subjects, class range, and locality preferences
-      const { data: requests, error } = await supabase
-        .from('parent_requests')
-        .select(`
-          *,
-          profiles:parent_id (
-            name,
-            email,
-            phone,
-            city
-          )
-        `)
-        .eq('profiles.city', user.city)
-        .overlaps('subjects', tutorProfile.subjects)
-        .filter('class', 'gte', parseInt(tutorProfile.class_range.split('-')[0]))
-        .filter('class', 'lte', parseInt(tutorProfile.class_range.split('-')[1]))
-        .in('locality', tutorProfile.locality_preferences); // Assuming locality_preferences is an array of exact localities
+      const trimmedCity = (user.city || "").trim();
+      const q = query(collection(db, 'parent_requests'), where('city', '==', trimmedCity));
+      const querySnapshot = await getDocs(q);
 
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to load student requests",
-          variant: "destructive"
-        });
-        setLoading(false);
-        return;
+      let requests = querySnapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      })) as any[];
+
+      const [minClass, maxClass] = tutorProfile.class_range.replace(/\s/g, '').split('-').map(Number);
+
+      const newRequests = [];
+      const unlockedRequests = [];
+
+      for (const req of requests) {
+        const subjectsValid = Array.isArray(req.subjects) && Array.isArray(tutorProfile.subjects);
+        const localityMatch = tutorProfile.locality_preferences.includes(req.locality);
+        const subjectMatch = subjectsValid && req.subjects.some((s: string) => tutorProfile.subjects.includes(s));
+        const classMatch = parseInt(req.class) >= minClass && parseInt(req.class) <= maxClass;
+
+        if (localityMatch && subjectMatch && classMatch) {
+          const status = getUnlockStatus(req.parent_id, req.id);
+          req.unlockStatus = status;
+
+          if (status) {
+            unlockedRequests.push(req);
+          } else {
+            newRequests.push(req);
+          }
+        }
       }
 
-      setMatchedRequests(requests || []);
+      setMatchedRequests([...newRequests, ...unlockedRequests]);
     } catch (error) {
       console.error('Error loading matched requests:', error);
     } finally {
@@ -117,56 +111,99 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
   const handleProfileSuccess = () => {
     setShowProfileModal(false);
     loadTutorProfile();
-    toast({
-      title: "Success",
-      description: "Tutor profile updated successfully!",
-    });
+    toast({ title: "Success", description: "Tutor profile updated successfully!" });
   };
 
   const handleRequestCallback = async (parentId: string, requestId: string) => {
     try {
-      const { error } = await supabase
-        .from('contact_unlocks')
-        .insert({
+      const docRef = await addDoc(collection(db, 'contact_unlocks'), {
+        tutor_id: user.id,
+        parent_id: parentId,
+        request_id: requestId,
+        status: 'pending',
+        unlocked_at: new Date().toISOString()
+      });
+
+      // Update UI immediately
+      setUnlockedContacts(prev => [
+        ...prev,
+        {
+          id: docRef.id,
           tutor_id: user.id,
           parent_id: parentId,
           request_id: requestId,
-          status: 'pending'
-        });
+          status: 'pending',
+          unlocked_at: new Date().toISOString()
+        }
+      ]);
 
-      if (error) {
-        console.error('Error requesting callback:', error);
-        toast({
-          title: "Error",
-          description: "Failed to request callback",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      loadUnlockedContacts();
-      toast({
-        title: "Callback Requested!",
-        description: "Waiting for admin approval.",
-      });
+      toast({ title: "Callback Requested!", description: "Waiting for admin approval." });
     } catch (error) {
       console.error('Error requesting callback:', error);
-      toast({
-        title: "Error",
-        description: "Failed to request callback",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Failed to request callback", variant: "destructive" });
     }
   };
 
-  const getUnlockStatus = (parentId: string, requestId: string) => {
-    const unlock = unlockedContacts.find(u => u.parent_id === parentId && u.request_id === requestId);
-    return unlock ? unlock.status : null;
+  const renderRequestCard = (request: any) => {
+    const status = request.unlockStatus;
+
+    return (
+      <Card key={request.id}>
+        <CardHeader>
+          <CardTitle className="flex justify-between items-center">
+            <div className="text-lg font-semibold">
+              Class {request.class} – {request.board}
+            </div>
+            <Badge variant="outline">{request.locality}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div>
+            <p className="text-sm text-gray-600">Subjects Required:</p>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {request.subjects.map((subject: string) => (
+                <Badge key={subject}>{subject}</Badge>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Student Name:</p>
+            <p className="text-md font-medium">{request.student_name}</p>
+          </div>
+
+          <div>
+            <p className="text-sm text-gray-500 italic">Contact details will be shared externally by the admin after callback approval.</p>
+          </div>
+
+          <div>
+            {!status ? (
+              <Button
+                onClick={() => handleRequestCallback(request.parent_id, request.id)}
+                variant="outline"
+                size="sm"
+              >
+                <Unlock className="mr-2 h-4 w-4" />
+                Request Callback
+              </Button>
+            ) : status === 'pending' ? (
+              <Button variant="secondary" size="sm" disabled>
+                <Lock className="mr-2 h-4 w-4" />
+                Callback Requested
+              </Button>
+            ) : (
+              <Button variant="secondary" size="sm" disabled>
+                <Unlock className="mr-2 h-4 w-4" />
+                Callback Approved
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3">
@@ -179,15 +216,13 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
           <div className="flex items-center space-x-4">
             <Badge variant="secondary">{user.city}</Badge>
             <Button variant="outline" onClick={onLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
+              <LogOut className="h-4 w-4 mr-2" /> Logout
             </Button>
           </div>
         </div>
       </header>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Profile Section */}
         <div className="mb-8">
           <Card>
             <CardHeader>
@@ -234,81 +269,37 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
               ) : (
                 <p className="text-gray-600">
                   Create your tutor profile to start receiving student requests.
-                  Include your subjects, fee, and availability.
                 </p>
               )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Matched Requests */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">
-            Matched Student Requests {matchedRequests.length > 0 && `(${matchedRequests.length})`}
-          </h2>
+        {loading ? (
+          <div className="text-center py-8">Loading matched requests...</div>
+        ) : (
+          <>
+            <div className="space-y-6 mb-10">
+              <h3 className="text-xl font-semibold text-gray-800 text-center">New Matches</h3>
 
-          {loading ? (
-            <div className="text-center py-8">Loading matched requests...</div>
-          ) : !tutorProfile ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <User className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-600 mb-2">Create Your Profile First</h3>
-                <p className="text-gray-500 mb-4">
-                  You need to create your tutor profile to see matched student requests.
-                </p>
-                <Button onClick={() => setShowProfileModal(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Profile
-                </Button>
-              </CardContent>
-            </Card>
-          ) : matchedRequests.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-600 mb-2">No Matches Yet</h3>
-                <p className="text-gray-500">
-                  No student requests match your profile criteria yet.
-                  Check back later or update your profile to match more requests.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-6">
-              {matchedRequests.map((request) => {
-                const unlockStatus = getUnlockStatus(request.parent_id, request.id);
-                if (!unlockStatus) {
-                  return (
-                    <Button
-                      onClick={() => handleRequestCallback(request.parent_id, request.id)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Request Callback
-                    </Button>
-                  );
-                } else if (unlockStatus === 'pending') {
-                  return (
-                    <Button variant="secondary" size="sm" disabled>
-                      Callback Requested
-                    </Button>
-                  );
-                } else if (unlockStatus === 'approved') {
-                  return (
-                    <Button variant="secondary" size="sm" disabled>
-                      Callback Approved
-                    </Button>
-                  );
-                }
-              })}
-
+              {matchedRequests.filter(r => !r.unlockStatus).length === 0 ? (
+                <p className="text-gray-500">No new Matches found.</p>
+              ) : (
+                matchedRequests.filter(r => !r.unlockStatus).map(renderRequestCard)
+              )}
             </div>
-          )}
-        </div>
+            <div className="space-y-6">
+              <h3 className="text-xl font-semibold text-gray-800 text-center">Requested</h3>
+              {matchedRequests.filter(r => r.unlockStatus).length === 0 ? (
+                <p className="text-gray-500">No unlocked Matches yet.</p>
+              ) : (
+                matchedRequests.filter(r => r.unlockStatus).map(renderRequestCard)
+              )}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Profile Modal */}
       {showProfileModal && (
         <PostTutorProfileModal
           user={user}

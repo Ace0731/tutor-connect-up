@@ -6,11 +6,13 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/AdminDashboard";
+import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
 
 import { useState, useEffect } from 'react';
-import { supabase } from "@/integrations/supabase/client";
+import { auth, db } from "@/integrations/firebase/client";
+import { doc, getDoc } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 
 type UserProfile = {
@@ -24,128 +26,82 @@ const App = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let subscription: { unsubscribe: () => void } | null = null;
-    let didTimeout = false;
-    const timeoutId = setTimeout(() => {
-      didTimeout = true;
-      setLoading(false);
-      toast({
-        title: "Error",
-        description: "Request timed out. Please check your connection and try again.",
-        variant: "destructive"
-      });
-    }, 8000); // 8 seconds fallback
-
-    // Set up auth state listener
-    const { data } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (didTimeout) return;
+    // Firebase Auth state listener
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
         try {
-          if (session?.user) {
-            const { data: profile, error } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .maybeSingle();
-
-            if (error) {
-              toast({
-                title: "Error",
-                description: "Failed to load user profile. Please try logging in again.",
-                variant: "destructive"
-              });
-              setCurrentUser(null);
-            } else if (profile) {
-              setCurrentUser(profile as UserProfile);
-            } else {
-              setCurrentUser(null);
-            }
+          // Fetch user profile from Firestore
+          const docRef = doc(db, 'profiles', user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setCurrentUser({ id: user.uid, ...docSnap.data() } as UserProfile);
           } else {
             setCurrentUser(null);
           }
         } catch (err) {
-          console.error('Auth state change error:', err);
+          console.error('Error fetching user profile:', err);
           setCurrentUser(null);
-        } finally {
-          if (!didTimeout) setLoading(false);
-          clearTimeout(timeoutId);
         }
-      }
-    );
-    subscription = data.subscription;
-
-    // Check for existing session
-    supabase.auth.getSession()
-      .then(({ data, error }) => {
-        if (didTimeout) return;
-        if (error) {
-          setLoading(false);
-          clearTimeout(timeoutId);
-          return;
-        }
-        const session = data?.session;
-        if (session?.user) {
-          supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .maybeSingle()
-            .then(({ data: profile, error }) => {
-              if (error) {
-                setCurrentUser(null);
-              } else if (profile) {
-                setCurrentUser(profile as UserProfile);
-              } else {
-                setCurrentUser(null);
-              }
-              if (!didTimeout) setLoading(false);
-              clearTimeout(timeoutId);
-            });
-        } else {
-          setCurrentUser(null);
-          if (!didTimeout) setLoading(false);
-          clearTimeout(timeoutId);
-        }
-      })
-      .catch((err: unknown) => {
-        console.error('Session fetch error:', err);
+      } else {
         setCurrentUser(null);
-        if (!didTimeout) setLoading(false);
-        clearTimeout(timeoutId);
-      });
-
-    return () => {
-      if (subscription) {
-        subscription.unsubscribe();
       }
-      clearTimeout(timeoutId);
-    };
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleLogout = async () => {
     setCurrentUser(null); // Optimistically update UI
-    const { error } = await supabase.auth.signOut();
-    if (error) {
+    try {
+      await auth.signOut();
+      toast({
+        title: "Success",
+        description: "Logged out successfully",
+      });
+    } catch (error) {
       toast({
         title: "Error",
         description: "Failed to logout",
         variant: "destructive"
       });
-    } else {
-      toast({
-        title: "Success",
-        description: "Logged out successfully",
-      });
     }
   };
 
+
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
+      <div className="min-h-screen w-full bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center relative overflow-hidden">
+        {/* Animated Blobs in Background */}
+        <div className="absolute w-72 h-72 bg-indigo-300 rounded-full opacity-30 animate-ping -top-10 -left-10" />
+        <div className="absolute w-72 h-72 bg-blue-300 rounded-full opacity-30 animate-ping -bottom-10 -right-10" />
+
+        {/* Glassy Floating Loader Card */}
+        <div className="relative z-10 backdrop-blur-xl bg-white/60 border border-white/20 rounded-xl shadow-2xl p-10 flex flex-col items-center space-y-6 animate-fadeIn">
+          {/* Spinner Icon with Pulse */}
+          <div className="relative">
+            <div className="w-16 h-16 rounded-full border-4 border-indigo-300 border-t-indigo-600 animate-spin" />
+            <Loader2 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-6 w-6 text-indigo-700" />
+          </div>
+
+          {/* Animated Loading Dots */}
+          <div className="flex text-lg font-medium text-indigo-800 space-x-1">
+            <span>Loading</span>
+            <span className="animate-bounce delay-0">.</span>
+            <span className="animate-bounce delay-150">.</span>
+            <span className="animate-bounce delay-300">.</span>
+          </div>
+
+          {/* Subtext */}
+          <p className="text-sm text-gray-700 text-center max-w-xs animate-pulse">
+            Fetching everything you need to get started — hang tight!
+          </p>
+        </div>
       </div>
     );
   }
+
+
 
   return (
     <QueryClientProvider client={queryClient}>

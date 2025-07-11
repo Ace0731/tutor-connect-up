@@ -1,25 +1,23 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Firebase Admin SDK private key
+serviceAccountKey.json
 
-node_modules
-dist
-dist-ssr
-*.local
+# Node modules
+node_modules/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# Build output
+dist/
+build/
+
+# Local environment variables
 .env
+.env.*
+
+# OS generated files
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+Thumbs.db
+
+# Log files
+*.log
+
+# Vite cache
+.vite/

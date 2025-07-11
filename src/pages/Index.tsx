@@ -214,7 +214,7 @@ const Index = ({ currentUser, onLogout }: IndexProps) => {
             <div>
               <Phone className="h-12 w-12 mx-auto mb-4" />
               <h4 className="text-xl font-semibold mb-2">Easy Contact</h4>
-              <p>Unlock contact details</p>
+              <p>Get connected with best Teachers</p>
             </div>
           </div>
         </div>
@@ -227,21 +227,34 @@ const Index = ({ currentUser, onLogout }: IndexProps) => {
             <BookOpen className="h-6 w-6" />
             <span className="text-xl font-bold">TutorConnect</span>
           </div>
+
           <p className="text-gray-400">
             Connecting students and tutors across Kanpur, Lucknow, and Unnao
           </p>
+
           <div className="flex justify-center space-x-6 mt-4">
             <div className="flex items-center space-x-2">
               <Mail className="h-4 w-4" />
-              <span>info@tutorconnect.com</span>
+              <span>info@thesahilsirstutorials.in</span>
             </div>
             <div className="flex items-center space-x-2">
               <Phone className="h-4 w-4" />
               <span>+91 8887622182</span>
             </div>
           </div>
+
+          <a
+            href="https://ace0731.github.io
+"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block mt-6 text-gray-500 hover:text-white transition-colors"
+          >
+            Built with passion by Ace
+          </a>
         </div>
       </footer>
+
 
       {/* Auth Modal */}
       {showAuthModal && (

@@ -7,7 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { auth, db } from "@/integrations/firebase/client";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 import { z } from "zod";
 
 interface AuthModalProps {
@@ -92,29 +94,13 @@ const AuthModal = ({ role, city, mode, onClose, onSwitchMode, onSuccess }: AuthM
 
     try {
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password,
-        });
-
-        if (error) {
-          toast({
-            title: "Error",
-            description: error.message,
-            variant: "destructive"
-          });
-          setIsLoading(false);
-          return;
-        }
-
-        // Get user profile
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-
-        if (profileError || !profile) {
+        // Firebase login
+        const userCredential = await signInWithEmailAndPassword(auth, formData.email, formData.password);
+        const user = userCredential.user;
+        // Fetch user profile from Firestore
+        const profileRef = doc(db, 'profiles', user.uid);
+        const profileSnap = await getDoc(profileRef);
+        if (!profileSnap.exists()) {
           toast({
             title: "Error",
             description: "Profile not found",
@@ -123,97 +109,37 @@ const AuthModal = ({ role, city, mode, onClose, onSwitchMode, onSuccess }: AuthM
           setIsLoading(false);
           return;
         }
-
         toast({
           title: "Success",
           description: "Login successful!",
         });
-        onSuccess(profile); // No role check here
+        onSuccess({ id: user.uid, ...profileSnap.data() });
       } else {
-        const redirectUrl = `${window.location.origin}/`;
-        const { data, error } = await supabase.auth.signUp({
+        // Firebase registration
+        const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+        const user = userCredential.user;
+        // Create user profile in Firestore
+        const profileData = {
+          name: formData.name,
           email: formData.email,
-          password: formData.password,
-          options: {
-            emailRedirectTo: redirectUrl,
-            data: {
-              name: formData.name,
-              phone: formData.phone,
-              city: formData.city,
-              role: formData.role
-            }
-          }
+          phone: formData.phone,
+          city: formData.city,
+          role: formData.role,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        await setDoc(doc(db, 'profiles', user.uid), profileData);
+        toast({
+          title: "Success",
+          description: "Registration successful!",
         });
-
-        if (error) {
-          toast({
-            title: "Error",
-            description: error.message,
-            variant: "destructive"
-          });
-          setIsLoading(false);
-          return;
-        }
-
-        if (data.user && !data.session) {
-          toast({
-            title: "Check your email",
-            description: "Please check your email for a confirmation link to complete your registration.",
-          });
-        } else if (data.user && data.session) {
-          // Try to get the created profile
-          let profile;
-          let profileError;
-          const { data: fetchedProfile, error: fetchError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
-          profile = fetchedProfile;
-          profileError = fetchError;
-
-          // If profile does not exist, insert it manually
-          if (!profile) {
-            const { error: insertError } = await supabase
-              .from('profiles')
-              .insert({
-                id: data.user.id,
-                name: formData.name,
-                email: formData.email,
-                phone: formData.phone,
-                city: formData.city,
-                role: formData.role
-              });
-            if (insertError) {
-              toast({
-                title: "Error",
-                description: "Failed to create user profile. Please contact support.",
-                variant: "destructive"
-              });
-              setIsLoading(false);
-              return;
-            }
-            // Fetch the profile again after insert
-            const { data: newProfile } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', data.user.id)
-              .single();
-            profile = newProfile;
-          }
-
-          toast({
-            title: "Success",
-            description: "Registration successful!",
-          });
-          onSuccess(profile);
-        }
+        onSuccess({ id: user.uid, ...profileData });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Auth error:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: error?.message || "An unexpected error occurred",
         variant: "destructive"
       });
     } finally {
