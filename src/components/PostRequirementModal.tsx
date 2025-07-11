@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,11 +13,12 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface PostRequirementModalProps {
   user: any;
+  existingRequest?: any; // Added for editing
   onClose: () => void;
   onSuccess: () => void;
 }
 
-const PostRequirementModal = ({ user, onClose, onSuccess }: PostRequirementModalProps) => {
+const PostRequirementModal = ({ user, existingRequest, onClose, onSuccess }: PostRequirementModalProps) => {
   const [formData, setFormData] = useState({
     studentName: '',
     board: '',
@@ -28,11 +29,24 @@ const PostRequirementModal = ({ user, onClose, onSuccess }: PostRequirementModal
   });
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (existingRequest) {
+      setFormData({
+        studentName: existingRequest.student_name || '',
+        board: existingRequest.board || '',
+        class: existingRequest.class || '',
+        subjects: existingRequest.subjects || [],
+        preferredTimings: existingRequest.preferred_timings || '',
+        locality: existingRequest.locality || ''
+      });
+    }
+  }, [existingRequest]);
+
   const boards = ['CBSE', 'ICSE', 'State'];
   const classes = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
   const subjects = [
-    'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 
-    'Hindi', 'Social Science', 'Computer Science', 'Economics', 
+    'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English',
+    'Hindi', 'Social Science', 'Computer Science', 'Economics',
     'Accountancy', 'Business Studies'
   ];
 
@@ -46,7 +60,7 @@ const PostRequirementModal = ({ user, onClose, onSuccess }: PostRequirementModal
   const handleSubjectChange = (subject: string, checked: boolean) => {
     setFormData(prev => ({
       ...prev,
-      subjects: checked 
+      subjects: checked
         ? [...prev.subjects, subject]
         : prev.subjects.filter(s => s !== subject)
     }));
@@ -54,7 +68,7 @@ const PostRequirementModal = ({ user, onClose, onSuccess }: PostRequirementModal
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.board || !formData.class || formData.subjects.length === 0 || !formData.locality) {
       toast({
         title: "Error",
@@ -67,9 +81,34 @@ const PostRequirementModal = ({ user, onClose, onSuccess }: PostRequirementModal
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('parent_requests')
-        .insert({
+      if (existingRequest) {
+        // Update existing request
+        const { error } = await supabase
+          .from('parent_requests')
+          .update({
+            student_name: formData.studentName || null,
+            board: formData.board,
+            class: formData.class,
+            subjects: formData.subjects,
+            preferred_timings: formData.preferredTimings,
+            locality: formData.locality,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingRequest.id);
+
+        if (error) {
+          console.error('Error updating parent request:', error);
+          toast({
+            title: "Error",
+            description: error.message || "Failed to update requirement",
+            variant: "destructive"
+          });
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Insert new request
+        const insertData = {
           parent_id: user.id,
           student_name: formData.studentName || null,
           board: formData.board,
@@ -77,24 +116,30 @@ const PostRequirementModal = ({ user, onClose, onSuccess }: PostRequirementModal
           subjects: formData.subjects,
           preferred_timings: formData.preferredTimings,
           locality: formData.locality
-        });
+        };
+        const { error } = await supabase
+          .from('parent_requests')
+          .insert(insertData);
 
-      if (error) {
-        console.error('Error creating parent request:', error);
-        toast({
-          title: "Error",
-          description: "Failed to post requirement",
-          variant: "destructive"
-        });
-        return;
+        if (error) {
+          console.error('Error creating parent request:', error);
+          console.log('Insert data:', insertData);
+          toast({
+            title: "Error",
+            description: error.message || "Failed to post requirement",
+            variant: "destructive"
+          });
+          setLoading(false);
+          return;
+        }
       }
 
       onSuccess();
     } catch (error) {
-      console.error('Error creating parent request:', error);
+      console.error('Error processing parent request:', error);
       toast({
         title: "Error",
-        description: "Failed to post requirement",
+        description: "Failed to process requirement",
         variant: "destructive"
       });
     } finally {
@@ -106,7 +151,7 @@ const PostRequirementModal = ({ user, onClose, onSuccess }: PostRequirementModal
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Post Tutor Requirement</CardTitle>
+          <CardTitle>{existingRequest ? 'Edit Tutor Requirement' : 'Post Tutor Requirement'}</CardTitle>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -193,7 +238,7 @@ const PostRequirementModal = ({ user, onClose, onSuccess }: PostRequirementModal
 
             <div className="flex gap-4 pt-4">
               <Button type="submit" disabled={loading} className="flex-1">
-                {loading ? 'Posting...' : 'Post Requirement'}
+                {loading ? (existingRequest ? 'Updating...' : 'Posting...') : (existingRequest ? 'Update Requirement' : 'Post Requirement')}
               </Button>
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel

@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { z } from "zod";
 
 interface PostTutorProfileModalProps {
   user: any;
@@ -30,7 +31,7 @@ const PostTutorProfileModal = ({ user, existingProfile, onClose, onSuccess }: Po
   const [loading, setLoading] = useState(false);
 
   const availableSubjects = [
-    'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Hindi', 
+    'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Hindi',
     'History', 'Geography', 'Political Science', 'Economics', 'Computer Science',
     'Accountancy', 'Business Studies', 'Psychology', 'Sociology'
   ];
@@ -57,37 +58,51 @@ const PostTutorProfileModal = ({ user, existingProfile, onClose, onSuccess }: Po
     setLocalityPreferences(localityPreferences.filter(l => l !== locality));
   };
 
+  const formSchema = z.object({
+    subjects: z.array(z.string()).min(1, { message: "Please add at least one subject" }),
+    classRangeMin: z.string().min(1, { message: "Please select a minimum class" }),
+    classRangeMax: z.string().min(1, { message: "Please select a maximum class" }),
+    localityPreferences: z.array(z.string()).min(1, { message: "Please add at least one locality preference" }),
+    feePerClass: z.string().regex(/^\d+$/, { message: "Fee per class must be a number" }).transform(Number),
+    availableTimings: z.string().min(1, { message: "Please enter your available timings" }),
+  }).refine(data => parseInt(data.classRangeMin) <= parseInt(data.classRangeMax), {
+    message: "Minimum class cannot be greater than maximum class",
+    path: ["classRangeMin"],
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (subjects.length === 0) {
-      toast({
-        title: "Error",
-        description: "Please add at least one subject",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (localityPreferences.length === 0) {
-      toast({
-        title: "Error",
-        description: "Please add at least one locality preference",
-        variant: "destructive"
-      });
-      return;
-    }
-
     setLoading(true);
+
+    const validation = formSchema.safeParse({
+      subjects,
+      classRangeMin,
+      classRangeMax,
+      localityPreferences,
+      feePerClass,
+      availableTimings
+    });
+
+    if (!validation.success) {
+      validation.error.errors.forEach((error) => {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive"
+        });
+      });
+      setLoading(false);
+      return;
+    }
 
     try {
       const profileData = {
         tutor_id: user.id,
-        subjects,
-        class_range: `${classRangeMin}-${classRangeMax}`,
-        locality_preferences: localityPreferences,
-        fee_per_class: parseInt(feePerClass),
-        available_timings: availableTimings
+        subjects: validation.data.subjects,
+        class_range: `${validation.data.classRangeMin}-${validation.data.classRangeMax}`,
+        locality_preferences: validation.data.localityPreferences,
+        fee_per_class: validation.data.feePerClass,
+        available_timings: validation.data.availableTimings
       };
 
       let error;

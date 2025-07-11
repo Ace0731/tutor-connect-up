@@ -1,178 +1,72 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, BookOpen, MapPin, Star, Phone, Mail } from "lucide-react";
 
 import AuthModal from "@/components/AuthModal";
-
+import AdminDashboard from "@/pages/AdminDashboard";
 import ParentDashboard from "@/components/ParentDashboard";
 import TutorDashboard from "@/components/TutorDashboard";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { Link } from 'react-router-dom';
 
 type UserProfile = {
   id: string;
-  role: 'parent' | 'tutor';
+  role: 'parent' | 'tutor' | 'admin';
   [key: string]: any;
 };
 
-const Index = () => {
+interface IndexProps {
+  currentUser: UserProfile | null;
+  onLogout: () => void;
+}
+
+const Index = ({ currentUser, onLogout }: IndexProps) => {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authRole, setAuthRole] = useState<'parent' | 'tutor'>('parent');
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [authRole, setAuthRole] = useState<'parent' | 'tutor' | undefined>(undefined);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [selectedCity, setSelectedCity] = useState('');
-  const [loading, setLoading] = useState(true);
 
   const cities = ['Kanpur', 'Lucknow', 'Unnao'];
 
-  useEffect(() => {
-    let subscription: { unsubscribe: () => void } | null = null;
-    let didTimeout = false;
-    const timeoutId = setTimeout(() => {
-      didTimeout = true;
-      setLoading(false);
-      toast({
-        title: "Error",
-        description: "Request timed out. Please check your connection and try again.",
-        variant: "destructive"
-      });
-    }, 8000); // 8 seconds fallback
-
-    // Set up auth state listener
-    const { data } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (didTimeout) return;
-        try {
-          if (session?.user) {
-            const { data: profile, error } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .maybeSingle();
-
-            if (error) {
-              toast({
-                title: "Error",
-                description: "Failed to load user profile. Please try logging in again.",
-                variant: "destructive"
-              });
-              setCurrentUser(null);
-            } else if (profile) {
-              setCurrentUser(profile as UserProfile);
-            } else {
-              setCurrentUser(null);
-            }
-          } else {
-            setCurrentUser(null);
-          }
-        } catch (err) {
-          console.error('Auth state change error:', err);
-          setCurrentUser(null);
-        } finally {
-          if (!didTimeout) setLoading(false);
-          clearTimeout(timeoutId);
-        }
-      }
-    );
-    subscription = data.subscription;
-
-    // Check for existing session
-    supabase.auth.getSession()
-      .then(({ data, error }) => {
-        if (didTimeout) return;
-        if (error) {
-          setLoading(false);
-          clearTimeout(timeoutId);
-          return;
-        }
-        const session = data?.session;
-        if (session?.user) {
-          supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .maybeSingle()
-            .then(({ data: profile, error }) => {
-              if (error) {
-                setCurrentUser(null);
-              } else if (profile) {
-                setCurrentUser(profile as UserProfile);
-              } else {
-                setCurrentUser(null);
-              }
-              if (!didTimeout) setLoading(false);
-              clearTimeout(timeoutId);
-            });
-        } else {
-          setCurrentUser(null);
-          if (!didTimeout) setLoading(false);
-          clearTimeout(timeoutId);
-        }
-      })
-      .catch((err: unknown) => {
-        console.error('Session fetch error:', err);
-        setCurrentUser(null);
-        if (!didTimeout) setLoading(false);
-        clearTimeout(timeoutId);
-      });
-
-    return () => {
-      if (subscription) {
-        subscription.unsubscribe();
-      }
-      clearTimeout(timeoutId);
-    };
-  }, []);
-
-  const handleRoleSelect = (role: 'parent' | 'tutor') => {
-    setAuthRole(role);
+  const handleLoginClick = () => {
+    setAuthMode('login');
+    setAuthRole(undefined);
     setShowAuthModal(true);
   };
 
-  const handleAuthSuccess = (user: UserProfile) => {
-    setCurrentUser(user);
+  const handleRegisterParentClick = () => {
+    setAuthMode('register');
+    setAuthRole('parent');
+    setShowAuthModal(true);
+  };
+
+  const handleRegisterTutorClick = () => {
+    setAuthMode('register');
+    setAuthRole('tutor');
+    setShowAuthModal(true);
+  };
+
+  const handleAuthSuccess = () => {
     setShowAuthModal(false);
+    // currentUser and onLogout are now managed by App.tsx, so no need to update state here
   };
-
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to logout",
-        variant: "destructive"
-      });
-    } else {
-      setCurrentUser(null);
-      toast({
-        title: "Success",
-        description: "Logged out successfully",
-      });
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
-      </div>
-    );
-  }
 
   if (currentUser) {
     if (currentUser.role === 'parent') {
-      return <ParentDashboard user={currentUser} onLogout={handleLogout} />;
+      return <ParentDashboard user={currentUser} onLogout={onLogout} />;
     } else if (currentUser.role === 'tutor') {
-      return <TutorDashboard user={currentUser} onLogout={handleLogout} />;
+      return <TutorDashboard user={currentUser} onLogout={onLogout} />;
+    } else if (currentUser.role === 'admin') {
+      return <AdminDashboard user={currentUser} onLogout={onLogout} />;
     } else {
       // fallback for unknown role
       return (
         <div className="min-h-screen flex items-center justify-center">
           <div>
             <div className="text-2xl mb-4">Unknown user role.</div>
-            <Button onClick={handleLogout}>Logout</Button>
+            <Button onClick={onLogout}>Logout</Button>
           </div>
         </div>
       );
@@ -186,7 +80,7 @@ const Index = () => {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <BookOpen className="h-8 w-8 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-800">TutorConnect</h1>
+            <h1 className="text-2xl font-bold text-gray-800">TutorConnect by Sahil Sir</h1>
           </div>
           <div className="flex items-center space-x-4">
             <Select value={selectedCity} onValueChange={setSelectedCity}>
@@ -199,6 +93,7 @@ const Index = () => {
                 ))}
               </SelectContent>
             </Select>
+            <Button onClick={handleLoginClick} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm">Login</Button>
           </div>
         </div>
       </header>
@@ -215,38 +110,39 @@ const Index = () => {
           </p>
 
           <div className="flex flex-col md:flex-row gap-6 justify-center items-center">
+            {/* Register as Parent Card */}
             <Card className="w-full md:w-80 cursor-pointer hover:shadow-lg transition-shadow">
               <CardHeader className="text-center">
                 <Users className="h-16 w-16 text-blue-600 mx-auto mb-4" />
-                <CardTitle className="text-2xl text-gray-800">I'm a Parent</CardTitle>
+                <CardTitle className="text-2xl text-gray-800">Register as Parent</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600 mb-6">
-                  Looking for the right tutor for your child? Post your requirements and connect with qualified educators.
+                  Looking for the right tutor for your child? Post your requirements and connect with qualified educators in your city.
                 </p>
                 <Button
-                  onClick={() => handleRoleSelect('parent')}
+                  onClick={handleRegisterParentClick}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg"
                 >
-                  Find Tutors
+                  Register as Parent
                 </Button>
               </CardContent>
             </Card>
-
+            {/* Register as Tutor Card */}
             <Card className="w-full md:w-80 cursor-pointer hover:shadow-lg transition-shadow">
               <CardHeader className="text-center">
                 <BookOpen className="h-16 w-16 text-green-600 mx-auto mb-4" />
-                <CardTitle className="text-2xl text-gray-800">I'm a Tutor</CardTitle>
+                <CardTitle className="text-2xl text-gray-800">Register as Tutor</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600 mb-6">
-                  Share your expertise and connect with students who need your help. Start earning today.
+                  Share your expertise and connect with students who need your help. Start earning and making a difference today.
                 </p>
                 <Button
-                  onClick={() => handleRoleSelect('tutor')}
+                  onClick={handleRegisterTutorClick}
                   className="w-full bg-green-600 hover:bg-green-700 text-white py-3 text-lg"
                 >
-                  Start Teaching
+                  Register as Tutor
                 </Button>
               </CardContent>
             </Card>
@@ -306,7 +202,7 @@ const Index = () => {
             <div>
               <Phone className="h-12 w-12 mx-auto mb-4" />
               <h4 className="text-xl font-semibold mb-2">Easy Contact</h4>
-              <p>Unlock contact details and connect directly with tutors or parents</p>
+              <p>Unlock contact details and connect directly with parents</p>
             </div>
           </div>
         </div>
@@ -329,7 +225,7 @@ const Index = () => {
             </div>
             <div className="flex items-center space-x-2">
               <Phone className="h-4 w-4" />
-              <span>+91 9876543210</span>
+              <span>+91 8887622182</span>
             </div>
           </div>
         </div>
@@ -338,8 +234,14 @@ const Index = () => {
       {/* Auth Modal */}
       {showAuthModal && (
         <AuthModal
-          role={authRole}
+          role={authMode === 'register' ? authRole : undefined}
+          city={selectedCity}
+          mode={authMode}
           onClose={() => setShowAuthModal(false)}
+          onSwitchMode={(mode) => {
+            setAuthMode(mode);
+            if (mode === 'login') setAuthRole(undefined);
+          }}
           onSuccess={handleAuthSuccess}
         />
       )}

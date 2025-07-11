@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, LogOut, User, BookOpen } from "lucide-react";
+import { Plus, LogOut, User, BookOpen, Edit, Trash } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PostRequirementModal from "./PostRequirementModal";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,16 +15,16 @@ interface ParentDashboardProps {
 
 const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
   const [showPostModal, setShowPostModal] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<any>(null);
   const [parentRequests, setParentRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('ParentDashboard mounted, user:', user);
     loadParentRequests();
   }, [user.id]);
 
   const loadParentRequests = async () => {
-    console.log('Loading parent requests for user:', user.id);
     try {
       const { data, error } = await supabase
         .from('parent_requests')
@@ -33,14 +33,12 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error loading parent requests:', error);
         toast({
           title: "Error",
           description: "Failed to load your requests",
           variant: "destructive"
         });
       } else {
-        console.log('Parent requests loaded:', data);
         setParentRequests(data || []);
       }
     } catch (error) {
@@ -52,11 +50,45 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
 
   const handlePostSuccess = () => {
     setShowPostModal(false);
+    setEditingRequest(null);
     loadParentRequests();
     toast({
       title: "Success",
-      description: "Tutor requirement posted successfully!",
+      description: `Tutor requirement ${editingRequest ? 'updated' : 'posted'} successfully!`,
     });
+  };
+
+  const handleEdit = (request: any) => {
+    setEditingRequest(request);
+    setShowPostModal(true);
+  };
+
+  const handleDelete = async (requestId: string) => {
+    setActionLoading(requestId);
+    try {
+      const { error } = await supabase
+        .from('parent_requests')
+        .delete()
+        .eq('id', requestId);
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to delete request",
+          variant: "destructive"
+        });
+      } else {
+        loadParentRequests();
+        toast({
+          title: "Success",
+          description: "Request deleted successfully",
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting request:', error);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   return (
@@ -88,7 +120,10 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>Post a Tutor Requirement</span>
-                <Button onClick={() => setShowPostModal(true)}>
+                <Button onClick={() => {
+                  setEditingRequest(null);
+                  setShowPostModal(true)
+                }}>
                   <Plus className="h-4 w-4 mr-2" />
                   Post Requirement
                 </Button>
@@ -150,10 +185,19 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
                         <p className="text-sm text-gray-600 mt-1">{request.preferred_timings || 'Not specified'}</p>
                       </div>
                     </div>
-                    <div className="mt-4 pt-4 border-t">
+                    <div className="mt-4 pt-4 border-t flex items-center justify-between">
                       <p className="text-sm text-gray-500">
                         Posted on {new Date(request.created_at).toLocaleDateString()}
                       </p>
+                      <div className="flex items-center space-x-2">
+                        <Button variant="outline" size="sm" onClick={() => handleEdit(request)} disabled={actionLoading === request.id}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDelete(request.id)} disabled={actionLoading === request.id}>
+                          {actionLoading === request.id ? 'Deleting...' : <><Trash className="h-4 w-4 mr-2" />Delete</>}
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -167,7 +211,11 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
       {showPostModal && (
         <PostRequirementModal
           user={user}
-          onClose={() => setShowPostModal(false)}
+          existingRequest={editingRequest}
+          onClose={() => {
+            setShowPostModal(false);
+            setEditingRequest(null);
+          }}
           onSuccess={handlePostSuccess}
         />
       )}

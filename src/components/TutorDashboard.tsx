@@ -21,20 +21,17 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('TutorDashboard mounted, user:', user);
     loadTutorProfile();
     loadUnlockedContacts();
   }, [user.id]);
 
   useEffect(() => {
     if (tutorProfile) {
-      console.log('Tutor profile loaded, loading matched requests');
       loadMatchedRequests();
     }
   }, [tutorProfile]);
 
   const loadTutorProfile = async () => {
-    console.log('Loading tutor profile for user:', user.id);
     try {
       const { data, error } = await supabase
         .from('tutor_profiles')
@@ -43,14 +40,12 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
         .maybeSingle();
 
       if (error) {
-        console.error('Error loading tutor profile:', error);
         toast({
           title: "Error",
           description: "Failed to load tutor profile",
           variant: "destructive"
         });
       } else {
-        console.log('Tutor profile data:', data);
         setTutorProfile(data);
       }
     } catch (error) {
@@ -59,7 +54,6 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
   };
 
   const loadUnlockedContacts = async () => {
-    console.log('Loading unlocked contacts for tutor:', user.id);
     try {
       const { data, error } = await supabase
         .from('contact_unlocks')
@@ -69,7 +63,6 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
       if (error) {
         console.error('Error loading unlocked contacts:', error);
       } else {
-        console.log('Unlocked contacts:', data);
         setUnlockedContacts(data || []);
       }
     } catch (error) {
@@ -78,9 +71,14 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
   };
 
   const loadMatchedRequests = async () => {
-    console.log('Loading matched requests for tutor in city:', user.city);
     try {
-      // Get parent requests with parent profile information
+      if (!tutorProfile) {
+        setMatchedRequests([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch parent requests that match tutor's city, subjects, class range, and locality preferences
       const { data: requests, error } = await supabase
         .from('parent_requests')
         .select(`
@@ -91,10 +89,14 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
             phone,
             city
           )
-        `);
+        `)
+        .eq('profiles.city', user.city)
+        .overlaps('subjects', tutorProfile.subjects)
+        .filter('class', 'gte', parseInt(tutorProfile.class_range.split('-')[0]))
+        .filter('class', 'lte', parseInt(tutorProfile.class_range.split('-')[1]))
+        .in('locality', tutorProfile.locality_preferences); // Assuming locality_preferences is an array of exact localities
 
       if (error) {
-        console.error('Error loading parent requests:', error);
         toast({
           title: "Error",
           description: "Failed to load student requests",
@@ -104,59 +106,7 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
         return;
       }
 
-      console.log('All parent requests:', requests);
-
-      if (!requests || !tutorProfile) {
-        console.log('No requests or tutor profile not available');
-        setMatchedRequests([]);
-        setLoading(false);
-        return;
-      }
-
-      // Filter requests based on tutor profile criteria
-      const matched = requests.filter((request: any) => {
-        console.log('Checking request:', request.id, 'for matching');
-
-        if (!request.profiles) {
-          console.log('Request has no profile data');
-          return false;
-        }
-
-        // Match by city
-        if (request.profiles.city !== user.city) {
-          console.log('City mismatch:', request.profiles.city, 'vs', user.city);
-          return false;
-        }
-
-        // Match by subjects (at least one common subject)
-        const hasCommonSubject = request.subjects.some((subject: string) =>
-          tutorProfile.subjects.includes(subject)
-        );
-        if (!hasCommonSubject) {
-          console.log('No common subjects');
-          return false;
-        }
-
-        // Match by class range
-        const requestClass = parseInt(request.class);
-        const [minClass, maxClass] = tutorProfile.class_range.split('-').map((c: string) => parseInt(c.trim()));
-        if (requestClass < minClass || requestClass > maxClass) {
-          console.log('Class out of range:', requestClass, 'not in', minClass, '-', maxClass);
-          return false;
-        }
-
-        // Match by locality preferences (more flexible matching)
-        const hasMatchingLocality = tutorProfile.locality_preferences.some((locality: string) =>
-          locality.toLowerCase().includes(request.locality.toLowerCase()) ||
-          request.locality.toLowerCase().includes(locality.toLowerCase())
-        );
-
-        console.log('Request matches criteria:', hasMatchingLocality);
-        return hasMatchingLocality;
-      });
-
-      console.log('Matched requests:', matched.length);
-      setMatchedRequests(matched);
+      setMatchedRequests(requests || []);
     } catch (error) {
       console.error('Error loading matched requests:', error);
     } finally {
@@ -173,46 +123,45 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
     });
   };
 
-  const handleUnlockContact = async (parentId: string, requestId: string) => {
-    console.log('Unlocking contact for parent:', parentId, 'request:', requestId);
+  const handleRequestCallback = async (parentId: string, requestId: string) => {
     try {
       const { error } = await supabase
         .from('contact_unlocks')
         .insert({
           tutor_id: user.id,
           parent_id: parentId,
-          request_id: requestId
+          request_id: requestId,
+          status: 'pending'
         });
 
       if (error) {
-        console.error('Error unlocking contact:', error);
+        console.error('Error requesting callback:', error);
         toast({
           title: "Error",
-          description: "Failed to unlock contact",
+          description: "Failed to request callback",
           variant: "destructive"
         });
         return;
       }
 
-      // Reload unlocked contacts
       loadUnlockedContacts();
-
       toast({
-        title: "Contact Unlocked!",
-        description: "You can now see the parent's contact details.",
+        title: "Callback Requested!",
+        description: "Waiting for admin approval.",
       });
     } catch (error) {
-      console.error('Error unlocking contact:', error);
+      console.error('Error requesting callback:', error);
       toast({
         title: "Error",
-        description: "Failed to unlock contact",
+        description: "Failed to request callback",
         variant: "destructive"
       });
     }
   };
 
-  const isContactUnlocked = (parentId: string, requestId: string) => {
-    return unlockedContacts.some(u => u.parent_id === parentId && u.request_id === requestId);
+  const getUnlockStatus = (parentId: string, requestId: string) => {
+    const unlock = unlockedContacts.find(u => u.parent_id === parentId && u.request_id === requestId);
+    return unlock ? unlock.status : null;
   };
 
   return (
@@ -328,75 +277,32 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
           ) : (
             <div className="grid gap-6">
               {matchedRequests.map((request) => {
-                const unlocked = isContactUnlocked(request.parent_id, request.id);
-                return (
-                  <Card key={request.id}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <span>{request.student_name ? `${request.student_name}` : 'Student'} - Class {request.class}</span>
-                        <Badge variant="outline">{request.board}</Badge>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <p className="text-sm text-gray-600 mb-1">Subjects Required</p>
-                          <div className="flex flex-wrap gap-1">
-                            {request.subjects.map((subject: string) => (
-                              <Badge key={subject} variant="secondary">{subject}</Badge>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600 mb-1">Location</p>
-                          <p className="font-semibold">{request.locality}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600 mb-1">Preferred Timings</p>
-                          <p className="text-sm">{request.preferred_timings || 'Not specified'}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600 mb-1">Posted</p>
-                          <p className="text-sm">{new Date(request.created_at).toLocaleDateString()}</p>
-                        </div>
-                      </div>
-
-                      <div className="border-t pt-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-gray-600 mb-1">Parent Contact</p>
-                            <div className="flex items-center space-x-2 text-gray-500">
-                              <Lock className="h-4 w-4" />
-                              <span>Contact details locked</span>
-                            </div>
-                          </div>
-                          <Button
-                            onClick={() => {
-                              // Compose WhatsApp message
-                              const tutorDetails = `Tutor Name: ${user.name}\nEmail: ${user.email}\nPhone: ${user.phone}\nCity: ${user.city}`;
-                              const profile = tutorProfile || {};
-                              const subjects = profile.subjects ? profile.subjects.join(', ') : '';
-                              const classRange = profile.class_range || '';
-                              const fee = profile.fee_per_class ? `₹${profile.fee_per_class}` : '';
-                              const timings = profile.available_timings || '';
-                              const localities = profile.locality_preferences ? profile.locality_preferences.join(', ') : '';
-                              const tutorProfileDetails = `Subjects: ${subjects}\nClass Range: ${classRange}\nFee Per Class: ${fee}\nAvailable Timings: ${timings}\nLocality Preferences: ${localities}`;
-                              const parentRequestDetails = `Student Name: ${request.student_name || ''}\nClass: ${request.class}\nBoard: ${request.board}\nSubjects: ${request.subjects.join(', ')}\nLocation: ${request.locality}\nPreferred Timings: ${request.preferred_timings || 'Not specified'}`;
-                              const message = `Unlock Request from Tutor\n\n${tutorDetails}\n${tutorProfileDetails}\n\nMatched Parent Request:\n${parentRequestDetails}`;
-                              const whatsappUrl = `https://wa.me/918181066459?text=${encodeURIComponent(message)}`;
-                              window.open(whatsappUrl, '_blank');
-                            }}
-                            className="bg-yellow-600 hover:bg-yellow-700"
-                          >
-                            <Unlock className="h-4 w-4 mr-2" />
-                            Connect
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
+                const unlockStatus = getUnlockStatus(request.parent_id, request.id);
+                if (!unlockStatus) {
+                  return (
+                    <Button
+                      onClick={() => handleRequestCallback(request.parent_id, request.id)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Request Callback
+                    </Button>
+                  );
+                } else if (unlockStatus === 'pending') {
+                  return (
+                    <Button variant="secondary" size="sm" disabled>
+                      Callback Requested
+                    </Button>
+                  );
+                } else if (unlockStatus === 'approved') {
+                  return (
+                    <Button variant="secondary" size="sm" disabled>
+                      Callback Approved
+                    </Button>
+                  );
+                }
               })}
+
             </div>
           )}
         </div>
