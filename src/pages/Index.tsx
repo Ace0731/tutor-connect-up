@@ -1,5 +1,7 @@
 
 import { useState } from 'react';
+import { Helmet } from "react-helmet";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,6 +12,16 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import ParentDashboard from "@/components/ParentDashboard";
 import TutorDashboard from "@/components/TutorDashboard";
 import { Link } from 'react-router-dom';
+
+
+<Helmet>
+  <title>TutorConnect | Find Tutors in Kanpur, Lucknow, Unnao</title>
+  <meta name="description" content="Find qualified home tutors in Kanpur, Lucknow, and Unnao. Connect with trusted educators to help your child learn better." />
+  <meta name="keywords" content="home tutor Kanpur, tutors in Lucknow, Unnao tutors, find tutor, online tuition, TutorConnect" />
+  <meta name="robots" content="index, follow" />
+  <meta name="author" content="TutorConnect by The Sahil Sir" />
+</Helmet>
+
 
 type UserProfile = {
   id: string;
@@ -80,7 +92,7 @@ const Index = ({ currentUser, onLogout }: IndexProps) => {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <BookOpen className="h-8 w-8 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-800">TutorConnect by Sahil Sir</h1>
+            <h1 className="text-2xl font-bold text-gray-800">TutorConnect by The Sahil Sir</h1>
           </div>
           <div className="flex items-center space-x-4">
             <Select value={selectedCity} onValueChange={setSelectedCity}>
@@ -202,7 +214,7 @@ const Index = ({ currentUser, onLogout }: IndexProps) => {
             <div>
               <Phone className="h-12 w-12 mx-auto mb-4" />
               <h4 className="text-xl font-semibold mb-2">Easy Contact</h4>
-              <p>Unlock contact details and connect directly with parents</p>
+              <p>Unlock contact details</p>
             </div>
           </div>
         </div>
