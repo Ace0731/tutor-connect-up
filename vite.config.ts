@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 export default defineConfig(({ mode }) => ({
+  base: "./", // 👈 REQUIRED for public_html deployment
+
   server: {
     host: "::",
     port: 8080,
@@ -14,7 +16,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    chunkSizeWarningLimit: 1000, // Optional: suppress chunk size warnings under 1MB
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks(id) {
