@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 export default defineConfig(({ mode }) => ({
-  base: "./", // 👈 REQUIRED for public_html deployment
+  base: "./",
 
   server: {
     host: "::",
@@ -17,17 +17,6 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes("node_modules")) {
-            if (id.includes("react")) return "react";
-            if (id.includes("firebase")) return "firebase";
-            if (id.includes("lucide-react")) return "icons";
-            return "vendor";
-          }
-        },
-      },
-    },
+    // REMOVE rollupOptions for now
   },
 }));
