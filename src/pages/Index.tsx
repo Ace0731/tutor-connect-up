@@ -89,26 +89,40 @@ const Index = ({ currentUser, onLogout }: IndexProps) => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-2">
+        <div className="container mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          {/* Logo + Title */}
+          <div className="flex items-center gap-2">
             <BookOpen className="h-8 w-8 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-800">TutorConnect by The Sahil Sir</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
+              TutorConnect by The Sahil Sir
+            </h1>
           </div>
-          <div className="flex items-center space-x-4">
+
+          {/* Select City + Login Button (always side-by-side) */}
+          <div className="flex flex-row gap-2 w-full sm:w-auto">
             <Select value={selectedCity} onValueChange={setSelectedCity}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="Select City" />
               </SelectTrigger>
               <SelectContent>
                 {cities.map(city => (
-                  <SelectItem key={city} value={city}>{city}</SelectItem>
+                  <SelectItem key={city} value={city}>
+                    {city}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Button onClick={handleLoginClick} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm">Login</Button>
+
+            <Button
+              onClick={handleLoginClick}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm w-full sm:w-auto"
+            >
+              Login
+            </Button>
           </div>
         </div>
       </header>
+
 
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-16 text-center">
@@ -232,7 +246,8 @@ const Index = ({ currentUser, onLogout }: IndexProps) => {
             Connecting students and tutors across Kanpur, Lucknow, and Unnao
           </p>
 
-          <div className="flex justify-center space-x-6 mt-4">
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-0 sm:space-x-6 mt-4 text-sm text-center">
             <div className="flex items-center space-x-2">
               <Mail className="h-4 w-4" />
               <span>info@thesahilsirstutorials.in</span>
@@ -243,6 +258,8 @@ const Index = ({ currentUser, onLogout }: IndexProps) => {
             </div>
           </div>
 
+
+
           <a
             href="https://ace0731.github.io
 "
@@ -250,8 +267,10 @@ const Index = ({ currentUser, onLogout }: IndexProps) => {
             rel="noopener noreferrer"
             className="block mt-6 text-gray-500 hover:text-white transition-colors"
           >
-            Built with passion by Ace
+            <p>Made with ❤️ by <strong>Ace</strong></p>
+
           </a>
+          <p>© 2025. All rights reserved.</p>
         </div>
       </footer>
 

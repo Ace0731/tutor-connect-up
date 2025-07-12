@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
 import { auth, db } from "@/integrations/firebase/client";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, getAuth, sendPasswordResetEmail } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { z } from "zod";
 
@@ -37,6 +37,10 @@ const AuthModal = ({ role, city, mode, onClose, onSwitchMode, onSuccess }: AuthM
 
   const cities = ['Kanpur', 'Lucknow', 'Unnao'];
   const roles = ['parent', 'tutor'];
+
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -147,6 +151,28 @@ const AuthModal = ({ role, city, mode, onClose, onSwitchMode, onSuccess }: AuthM
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, resetEmail);
+      toast({
+        title: "Success",
+        description: "Password reset email sent! Check your inbox.",
+      });
+      setShowForgotPassword(false);
+      setResetEmail("");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to send reset email.",
+        variant: "destructive"
+      });
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <Card className="w-full max-w-md">
@@ -231,6 +257,16 @@ const AuthModal = ({ role, city, mode, onClose, onSwitchMode, onSuccess }: AuthM
                 onChange={(e) => handleInputChange('password', e.target.value)}
                 required
               />
+              {isLogin && (
+                <button
+                  type="button"
+                  className="text-xs text-blue-600 hover:underline mt-1 float-right"
+                  onClick={() => setShowForgotPassword(true)}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                >
+                  Forgot Password?
+                </button>
+              )}
             </div>
 
             {!isLogin && (
@@ -273,6 +309,35 @@ const AuthModal = ({ role, city, mode, onClose, onSwitchMode, onSuccess }: AuthM
           </form>
         </CardContent>
       </Card>
+      {showForgotPassword && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <Card className="w-full max-w-sm">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Reset Password</CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setShowForgotPassword(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div>
+                  <Label htmlFor="resetEmail">Email</Label>
+                  <Input
+                    id="resetEmail"
+                    type="email"
+                    value={resetEmail}
+                    onChange={e => setResetEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={resetLoading}>
+                  {resetLoading ? 'Sending...' : 'Send Reset Email'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

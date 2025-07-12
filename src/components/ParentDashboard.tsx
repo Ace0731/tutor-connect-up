@@ -87,48 +87,63 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-3">
-            <BookOpen className="h-8 w-8 text-blue-600" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">Parent Dashboard</h1>
+        <div className="container mx-auto px-4 py-4 flex justify-between items-start sm:items-center">
+
+          {/* Left: Icon + Title + Welcome */}
+          <div className="flex items-start sm:items-center space-x-3">
+            <BookOpen className="h-8 w-8 text-blue-600 mt-1 sm:mt-0" />
+            <div className="flex flex-col">
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-800">Parent Dashboard</h1>
               <p className="text-sm text-gray-600">Welcome, {user.name}</p>
             </div>
           </div>
-          <div className="flex items-center space-x-4">
-            <Badge variant="secondary">{user.city}</Badge>
-            <Button variant="outline" onClick={onLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
+
+          {/* Right: City + Logout (stacked on mobile) */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0 mt-2 sm:mt-0">
+            <Badge variant="secondary" className="text-xs sm:text-sm w-fit">{user.city}</Badge>
+            <Button
+              variant="outline"
+              onClick={onLogout}
+              className="px-4 py-2 text-sm flex items-center justify-center"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">Logout</span>
             </Button>
           </div>
+
         </div>
       </header>
+
 
       <div className="container mx-auto px-4 py-8">
         {/* Action Section */}
         <div className="mb-8">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>Post a Tutor Requirement</span>
-                <Button onClick={() => {
-                  setEditingRequest(null);
-                  setShowPostModal(true)
-                }}>
+              <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+                <span className="text-lg sm:text-xl font-semibold">Post a Tutor Requirement</span>
+                <Button
+                  onClick={() => {
+                    setEditingRequest(null);
+                    setShowPostModal(true);
+                  }}
+                  className="w-full sm:w-auto text-sm"
+                >
                   <Plus className="h-4 w-4 mr-2" />
                   Post Requirement
                 </Button>
               </CardTitle>
             </CardHeader>
+
             <CardContent>
-              <p className="text-gray-600">
+              <p className="text-gray-600 text-sm sm:text-base">
                 Create a detailed requirement to find the perfect tutor for your child.
                 Include subject preferences, timings, and locality details.
               </p>
             </CardContent>
           </Card>
         </div>
+
 
         {/* Posted Requests */}
         <div>
@@ -155,13 +170,18 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
               {parentRequests.map((request) => (
                 <Card key={request.id}>
                   <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span>{request.student_name ? `For ${request.student_name}` : 'Tutor Requirement'}</span>
-                      <Badge variant="outline">{request.board}</Badge>
+                    <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+                      <span className="text-base sm:text-lg font-semibold">
+                        {request.student_name ? `For ${request.student_name}` : 'Tutor Requirement'}
+                      </span>
+                      <Badge variant="outline" className="w-fit">{request.board}</Badge>
                     </CardTitle>
                   </CardHeader>
+
                   <CardContent>
-                    <div className="grid md:grid-cols-2 gap-4">
+                    {/* Info Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Class & Subjects */}
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Class & Subjects</p>
                         <p className="font-semibold">Class {request.class}</p>
@@ -171,28 +191,51 @@ const ParentDashboard = ({ user, onLogout }: ParentDashboardProps) => {
                           ))}
                         </div>
                       </div>
+
+                      {/* Location & Timing */}
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Location & Timing</p>
                         <p className="font-semibold">{request.locality}</p>
                         <p className="text-sm text-gray-600 mt-1">{request.preferred_timings || 'Not specified'}</p>
                       </div>
                     </div>
-                    <div className="mt-4 pt-4 border-t flex items-center justify-between">
+
+                    {/* Footer */}
+                    <div className="mt-4 pt-4 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+                      {/* Date */}
                       <p className="text-sm text-gray-500">
                         Posted on {new Date(request.created_at).toLocaleDateString()}
                       </p>
-                      <div className="flex items-center space-x-2">
-                        <Button variant="outline" size="sm" onClick={() => handleEdit(request)} disabled={actionLoading === request.id}>
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(request)}
+                          disabled={actionLoading === request.id}
+                        >
                           <Edit className="h-4 w-4 mr-2" />
                           Edit
                         </Button>
-                        <Button variant="destructive" size="sm" onClick={() => handleDelete(request.id)} disabled={actionLoading === request.id}>
-                          {actionLoading === request.id ? 'Deleting...' : <><Trash className="h-4 w-4 mr-2" />Delete</>}
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDelete(request.id)}
+                          disabled={actionLoading === request.id}
+                        >
+                          {actionLoading === request.id ? 'Deleting...' : (
+                            <>
+                              <Trash className="h-4 w-4 mr-2" />
+                              Delete
+                            </>
+                          )}
                         </Button>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
+
               ))}
             </div>
           )}

@@ -205,22 +205,33 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-3">
-            <BookOpen className="h-8 w-8 text-green-600" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">Tutor Dashboard</h1>
+        <div className="container mx-auto px-4 py-4 flex justify-between items-start sm:items-center">
+
+          {/* Left Section: Icon + Title + Welcome */}
+          <div className="flex items-start sm:items-center space-x-3">
+            <BookOpen className="h-8 w-8 text-green-600 mt-1 sm:mt-0" />
+            <div className="flex flex-col">
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-800">Tutor Dashboard</h1>
               <p className="text-sm text-gray-600">Welcome, {user.name}</p>
             </div>
           </div>
-          <div className="flex items-center space-x-4">
-            <Badge variant="secondary">{user.city}</Badge>
-            <Button variant="outline" onClick={onLogout}>
-              <LogOut className="h-4 w-4 mr-2" /> Logout
+
+          {/* Right Section: Stack City & Button on Mobile */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0 mt-2 sm:mt-0">
+            <Badge variant="secondary" className="text-xs sm:text-sm w-fit">{user.city}</Badge>
+            <Button
+              variant="outline"
+              onClick={onLogout}
+              className="px-4 py-2 text-sm flex items-center justify-center"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">Logout</span>
             </Button>
           </div>
+
         </div>
       </header>
+
 
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
