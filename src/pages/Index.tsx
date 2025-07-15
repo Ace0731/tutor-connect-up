@@ -20,6 +20,7 @@ import { Link } from 'react-router-dom';
   <meta name="keywords" content="home tutor Kanpur, tutors in Lucknow, Unnao tutors, find tutor, online tuition, TutorConnect" />
   <meta name="robots" content="index, follow" />
   <meta name="author" content="TutorConnect by The Sahil Sir" />
+  <meta name="google-adsense-account" content="ca-pub-7270729548756015"></meta>
 </Helmet>
 
 
