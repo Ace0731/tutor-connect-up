@@ -14,6 +14,10 @@ import {
   getDoc,
   updateDoc
 } from "firebase/firestore";
+import { Link } from 'react-router-dom';
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import BlogManagement from "@/components/BlogManagement";
 
 interface AdminDashboardProps {
   user: any;
@@ -113,98 +117,117 @@ const AdminDashboard = ({ user, onLogout }: AdminDashboardProps) => {
           </div>
 
           {/* Right Section: Logout Button (Always Right, Icon-only on Mobile) */}
-          <Button
-            variant="outline"
-            onClick={onLogout}
-            className="px-4 py-2 text-sm flex items-center"
-          >
-            <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline ml-2">Logout</span>
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button asChild variant="outline" className="px-4 py-2 text-sm flex items-center">
+              <Link to="/blogs" className="text-gray-600 hover:text-blue-600">
+                Blogs
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={onLogout}
+              className="px-4 py-2 text-sm flex items-center"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">Logout</span>
+            </Button>
+          </div>
 
         </div>
       </header>
 
 
       <div className="container mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Pending Unlock Requests</h2>
+        <Tabs defaultValue="requests">
+          <TabsList className="mb-6">
+            <TabsTrigger value="requests">Pending Requests</TabsTrigger>
+            <TabsTrigger value="blogs">Blog Management</TabsTrigger>
+          </TabsList>
 
-        {loading ? (
-          <div className="text-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto" />
-            Loading...
-          </div>
-        ) : pendingRequests.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <h3 className="text-lg font-semibold text-gray-600 mb-2">No Pending Requests</h3>
-              <p className="text-gray-500">All requests are handled.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-6">
-            {pendingRequests.map((req) => (
-              <Card key={req.id}>
-                <CardHeader>
-                  <CardTitle className="flex justify-between items-center">
-                    <span>
-                      {req.tutor?.name || "Unknown Tutor"} ({req.tutor?.phone || "N/A"})
-                    </span>
-                    <Badge variant="outline">{req.status}</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Parent</p>
-                      <p className="font-semibold">{req.parent?.name || "N/A"}</p>
-                      <p className="text-sm text-gray-600">{req.parent?.email}</p>
-                      <p className="text-sm text-gray-600">{req.parent?.phone}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Request</p>
-                      <p className="font-semibold">
-                        Class {req.parent_request?.class} – {req.parent_request?.board}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Subjects: {req.parent_request?.subjects?.join(', ') || "N/A"}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Locality: {req.parent_request?.locality || "N/A"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      onClick={() => handleStatusUpdate(req.id, 'approved')}
-                      disabled={actionLoading === req.id}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      {actionLoading === req.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      ) : (
-                        <Check className="h-4 w-4 mr-2" />
-                      )}
-                      Approve
-                    </Button>
-                    <Button
-                      onClick={() => handleStatusUpdate(req.id, 'denied')}
-                      disabled={actionLoading === req.id}
-                      variant="destructive"
-                    >
-                      {actionLoading === req.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      ) : (
-                        <X className="h-4 w-4 mr-2" />
-                      )}
-                      Deny
-                    </Button>
-                  </div>
+          <TabsContent value="requests">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Pending Unlock Requests</h2>
+            {loading ? (
+              <div className="text-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+                Loading...
+              </div>
+            ) : pendingRequests.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center">
+                  <h3 className="text-lg font-semibold text-gray-600 mb-2">No Pending Requests</h3>
+                  <p className="text-gray-500">All requests are handled.</p>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        )}
+            ) : (
+              <div className="grid gap-6">
+                {pendingRequests.map((req) => (
+                  <Card key={req.id}>
+                    <CardHeader>
+                      <CardTitle className="flex justify-between items-center">
+                        <span>
+                          {req.tutor?.name || "Unknown Tutor"} ({req.tutor?.phone || "N/A"})
+                        </span>
+                        <Badge variant="outline">{req.status}</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Parent</p>
+                          <p className="font-semibold">{req.parent?.name || "N/A"}</p>
+                          <p className="text-sm text-gray-600">{req.parent?.email}</p>
+                          <p className="text-sm text-gray-600">{req.parent?.phone}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Request</p>
+                          <p className="font-semibold">
+                            Class {req.parent_request?.class} – {req.parent_request?.board}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Subjects: {req.parent_request?.subjects?.join(', ') || "N/A"}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Locality: {req.parent_request?.locality || "N/A"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          onClick={() => handleStatusUpdate(req.id, 'approved')}
+                          disabled={actionLoading === req.id}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          {actionLoading === req.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <Check className="h-4 w-4 mr-2" />
+                          )}
+                          Approve
+                        </Button>
+                        <Button
+                          onClick={() => handleStatusUpdate(req.id, 'denied')}
+                          disabled={actionLoading === req.id}
+                          variant="destructive"
+                        >
+                          {actionLoading === req.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <X className="h-4 w-4 mr-2" />
+                          )}
+                          Deny
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="blogs">
+            <BlogManagement />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

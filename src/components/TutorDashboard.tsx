@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import PostTutorProfileModal from "./PostTutorProfileModal";
 import { db } from "@/integrations/firebase/client";
 import { collection, query, where, getDocs, doc, addDoc } from "firebase/firestore";
+import { Link } from 'react-router-dom';
 
 interface TutorDashboardProps {
   user: any;
@@ -219,6 +220,11 @@ const TutorDashboard = ({ user, onLogout }: TutorDashboardProps) => {
           {/* Right Section: Stack City & Button on Mobile */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0 mt-2 sm:mt-0">
             <Badge variant="secondary" className="text-xs sm:text-sm w-fit">{user.city}</Badge>
+            <Button asChild variant="outline" className="px-4 py-2 text-sm flex items-center justify-center">
+              <Link to="/blogs" className="text-gray-600 hover:text-blue-600">
+                Blogs
+              </Link>
+            </Button>
             <Button
               variant="outline"
               onClick={onLogout}

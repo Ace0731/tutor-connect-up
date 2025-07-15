@@ -35,7 +35,7 @@ const PostTutorProfileModal = ({ user, existingProfile, onClose, onSuccess }: Po
   const availableSubjects = [
     'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Hindi',
     'History', 'Geography', 'Political Science', 'Economics', 'Computer Science',
-    'Accountancy', 'Business Studies', 'Psychology', 'Sociology'
+    'Accountancy', 'Business Studies', 'Commerce'
   ];
 
   const cities = ['Kanpur', 'Lucknow', 'Unnao'];

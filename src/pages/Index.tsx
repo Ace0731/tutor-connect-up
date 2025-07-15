@@ -99,7 +99,10 @@ const Index = ({ currentUser, onLogout }: IndexProps) => {
           </div>
 
           {/* Select City + Login Button (always side-by-side) */}
-          <div className="flex flex-row gap-2 w-full sm:w-auto">
+          <div className="flex flex-row items-center gap-4">
+            <Link to="/blogs" className="text-gray-600 hover:text-blue-600">
+              Blogs
+            </Link>
             <Select value={selectedCity} onValueChange={setSelectedCity}>
               <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="Select City" />
